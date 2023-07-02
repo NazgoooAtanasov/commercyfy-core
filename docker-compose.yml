@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+    database:
+        image: 'postgres:latest'
+        ports:
+            - ${PORT}:${PORT}
+
+        volumes:
+            - ./db-data/:/var/lib/postgres/data/
