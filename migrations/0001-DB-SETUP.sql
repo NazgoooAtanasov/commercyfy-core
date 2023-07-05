@@ -46,3 +46,21 @@ CREATE TABLE portal_users (
     password VARCHAR NOT NULL,
     roles PortalUsersRoles[]
 );
+
+CREATE TABLE inventories (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    inventory_name VARCHAR NOT NULL UNIQUE,
+    inventory_reference VARCHAR NOT NULL UNIQUE,
+);
+
+CREATE TABLE inventories_products (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+
+    allocation INT NOT NULL DEFAULT 0,
+
+    product_id uuid,
+    inventory_id uuid,
+    FOREIGN KEY (inventory_id) references inventories(id),
+    FOREIGN KEY (product_id) references products(id),
+    UNIQUE(inventory_id, product_id)
+);

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use tokio_postgres::{Client, Row, Error};
 use actix_web::{web, get, Responder, HttpResponse, http::StatusCode};
 
+use crate::routes::{portal_user::ErrorResponse, inventory::{Inventory, ProductInventoryRecord}};
+
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ProductImage {
@@ -87,4 +89,22 @@ pub async fn get_product(path: web::Path<String>, app_data: web::Data::<Arc<Clie
     }
 
     return HttpResponse::build(StatusCode::BAD_REQUEST).finish();
+}
+
+#[get("/{product_id}/inventory/{inventory_id}")]
+pub async fn get_product_inventory(path: web::Path<(String, String)>, app_data: web::Data::<Arc<Client>>) -> impl Responder {
+    let (product_id, inventory_id) = path.into_inner();
+
+    let product_inventory_lookup_result = app_data.query_one("\
+        SELECT ip.allocation, ip.product_id FROM inventories_products ip WHERE ip.product_id::text = $1 AND ip.inventory_id::text = $2;
+        ", &[&product_id, &inventory_id]).await;
+
+    if let Err(_error) = product_inventory_lookup_result {
+        return HttpResponse::build(StatusCode::BAD_REQUEST)
+            .json(ErrorResponse{ error_message: "There was an error trying to retrieve the requested resource.".to_string()});
+    }
+
+    let product_inventory_record = ProductInventoryRecord::from(&product_inventory_lookup_result.unwrap());
+
+    return HttpResponse::Ok().json(product_inventory_record);
 }
