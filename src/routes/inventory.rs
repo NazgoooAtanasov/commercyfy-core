@@ -108,3 +108,44 @@ pub async fn create_inventory(app_data: web::Data::<Arc<Client>>, data: web::Jso
 
     return HttpResponse::Created().finish();
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+struct InventoryRecordInput {
+    product_id: uuid::Uuid,
+    inventory_id: uuid::Uuid,
+    allocation: i32
+}
+
+#[post("/record")]
+async fn create_record(
+    app_data: web::Data::<Arc<Client>>,
+    data: web::Json<InventoryRecordInput>,
+    request_data: Option<web::ReqData<JWTClaims>>,
+) -> impl Responder {
+    let claims = request_data.unwrap();
+
+    if !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR) && !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN) {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let existing_inventory_lookip = app_data.query_one("SELECT id FROM inventories WHERE id = $1", &[&data.inventory_id]).await;
+    if let Err(_error) = existing_inventory_lookip {
+        return HttpResponse::BadRequest().json(ErrorResponse{ error_message: "Inventory with that id or reference does not exist.".to_string()});
+    }
+
+    let existing_product_lookip = app_data.query_one("SELECT id FROM products WHERE id = $1", &[&data.product_id]).await;
+    if let Err(_error) = existing_product_lookip {
+        return HttpResponse::BadRequest().json(ErrorResponse{ error_message: "Product with that id does not exist.".to_string()});
+    }
+
+    let insert_relation_query = app_data.query(
+        "INSERT INTO inventories_products (product_id, inventory_id, allocation) VALUES ($1, $2, $3)",
+        &[&data.product_id, &data.inventory_id, &data.allocation]).await;
+
+    if let Err(_error) = insert_relation_query {
+        println!("{:?}", _error);
+        return HttpResponse::BadRequest().json(ErrorResponse{ error_message: "There was an error inserting the record.".to_string() });
+    }
+
+    return HttpResponse::Created().finish();
+}

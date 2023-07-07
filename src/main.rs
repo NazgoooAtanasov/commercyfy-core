@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use env_logger::Env;
-use routes::inventory::{get_inventory, create_inventory};
+use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::signin;
 use routes::product::get_product_inventory;
 use tokio_postgres::{Config, NoTls, Error};
@@ -64,6 +64,7 @@ async fn main() -> Result<(), Error> {
                     .wrap(Authentication)
                     .service(get_inventory)
                     .service(create_inventory)
+                    .service(create_record)
             )
 
             .service(
