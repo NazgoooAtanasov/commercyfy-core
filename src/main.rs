@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use env_logger::Env;
+use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::signin;
+use routes::product::get_product_inventory;
 use tokio_postgres::{Config, NoTls, Error};
 use actix_web::{HttpServer, App, middleware::Logger, web};
 
@@ -42,6 +44,7 @@ async fn main() -> Result<(), Error> {
                 web::scope("/product")
                     .wrap(Authentication)
                     .service(get_product)
+                    .service(get_product_inventory)
             )
 
             .service(
@@ -54,6 +57,14 @@ async fn main() -> Result<(), Error> {
                 web::scope("/portal")
                     .wrap(Authentication)
                     .service(create_user)
+            )
+
+            .service(
+                web::scope("/inventory")
+                    .wrap(Authentication)
+                    .service(get_inventory)
+                    .service(create_inventory)
+                    .service(create_record)
             )
 
             .service(

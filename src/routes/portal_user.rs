@@ -14,10 +14,10 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 
 #[derive(Serialize, Debug)]
 pub struct ErrorResponse {
-    error_message: String
+    pub error_message: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSql, FromSql)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSql, FromSql, PartialEq)]
 pub enum PortalUsersRoles {
     READER,
     EDITOR,
