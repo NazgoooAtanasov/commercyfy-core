@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{HttpResponse, error};
 use env_logger::Env;
-use routes::category::{create_category, assing_products};
+use routes::category::{create_category, assing_products, get_category};
 use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::{signin, ErrorResponse};
 use routes::product::{get_product_inventory, create_product, create_images};
@@ -66,6 +66,7 @@ async fn main() -> Result<(), Error> {
                     .service(get_categories)
                     .service(create_category)
                     .service(assing_products)
+                    .service(get_category)
             )
 
             .service(

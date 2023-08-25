@@ -151,5 +151,41 @@ pub async fn assing_products(
             error_message: error.to_string()
         });
     }
-    return HttpResponse::Ok().finish();
+    return HttpResponse::Created().finish();
+}
+
+#[get("/{category_id}")]
+pub async fn get_category(
+    app_data: web::Data::<Arc<Client>>,
+    path: web::Path<uuid::Uuid>
+) -> impl Responder {
+
+    // @TODO: Here we are doing two SQL queries where one should suffice.
+
+    let category_id = path.into_inner();
+    let category_lookup_response = app_data.query_one("SELECT * FROM categories WHERE id = $1", &[&category_id]).await;
+    if let Err(error) = category_lookup_response {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: error.to_string()
+        });
+    }
+
+    let mut category = Category::from(&category_lookup_response.unwrap());
+
+    let category_products_lookup = app_data.query("\
+        SELECT p.id, p.product_name, p.product_description, p.product_color, i.id as image_id, i.src, i.srcset, i.alt, i.product_id FROM products p \
+        JOIN categories_products cp ON p.id = cp.product_id \
+        FULL OUTER JOIN (SELECT DISTINCT ON (product_id) * FROM images) AS i ON i.product_id = p.id \
+        WHERE cp.category_id = $1 \
+    ", &[&category.id]).await;
+    if let Err(error) = category_products_lookup {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: error.to_string()
+        });
+    }
+
+    let products: Vec<Product> = category_products_lookup.unwrap().iter().map(|x| { return Product::from(x); }).collect();
+    category.products = Some(products);
+
+    return HttpResponse::Ok().json(category);
 }
