@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use actix_web::{HttpResponse, error};
 use env_logger::Env;
 use routes::inventory::{get_inventory, create_inventory, create_record};
-use routes::portal_user::signin;
-use routes::product::get_product_inventory;
+use routes::portal_user::{signin, ErrorResponse};
+use routes::product::{get_product_inventory, create_product};
 use tokio_postgres::{Config, NoTls, Error};
 use actix_web::{HttpServer, App, middleware::Logger, web};
 
@@ -40,11 +41,21 @@ async fn main() -> Result<(), Error> {
         App::new()
             .app_data(web::Data::new(client))
 
+            .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                return error::InternalError::from_response(
+                    "",
+                    HttpResponse::BadRequest()
+                        .json(ErrorResponse{ error_message: err.to_string()})
+                        .into()
+                ).into();
+            }))
+
             .service(
                 web::scope("/product")
                     .wrap(Authentication)
                     .service(get_product)
                     .service(get_product_inventory)
+                    .service(create_product)
             )
 
             .service(

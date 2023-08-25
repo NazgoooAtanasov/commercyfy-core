@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE products (
     id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
     product_name VARCHAR NOT NULL,
@@ -44,13 +46,13 @@ CREATE TABLE portal_users (
     first_name VARCHAR NOT NULL,
     last_name VARCHAR NOT NULL,
     password VARCHAR NOT NULL,
-    roles PortalUsersRoles[]
+    roles "PortalUsersRoles"[]
 );
 
 CREATE TABLE inventories (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     inventory_name VARCHAR NOT NULL UNIQUE,
-    inventory_reference VARCHAR NOT NULL UNIQUE,
+    inventory_reference VARCHAR NOT NULL UNIQUE
 );
 
 CREATE TABLE inventories_products (

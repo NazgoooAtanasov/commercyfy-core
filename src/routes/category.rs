@@ -37,7 +37,7 @@ pub async fn get_categories(app_data: web::Data<Arc<Client>>) -> impl Responder 
             let category_products_lookup = app_data.query("\
                 SELECT p.id, p.product_name, p.product_description, p.product_color, i.id as image_id, i.src, i.srcset, i.alt, i.product_id FROM products p \
                 JOIN categories_products cp ON p.id = cp.product_id \
-                JOIN (SELECT DISTINCT ON (product_id) * FROM images) AS i ON i.product_id = p.id \
+                FULL OUTER JOIN (SELECT DISTINCT ON (product_id) * FROM images) AS i ON i.product_id = p.id \
                 WHERE cp.category_id = $1 \
                 ", &[&category.id]).await;
 
