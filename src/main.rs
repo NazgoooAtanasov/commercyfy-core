@@ -4,7 +4,7 @@ use actix_web::{HttpResponse, error};
 use env_logger::Env;
 use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::{signin, ErrorResponse};
-use routes::product::{get_product_inventory, create_product};
+use routes::product::{get_product_inventory, create_product, create_images};
 use tokio_postgres::{Config, NoTls, Error};
 use actix_web::{HttpServer, App, middleware::Logger, web};
 
@@ -56,6 +56,8 @@ async fn main() -> Result<(), Error> {
                     .service(get_product)
                     .service(get_product_inventory)
                     .service(create_product)
+
+                    .service(create_images)
             )
 
             .service(

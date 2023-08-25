@@ -221,3 +221,68 @@ pub async fn create_product(
 
     return HttpResponse::Created().finish();
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ImageInput {
+    pub src: String,
+    pub srcset: Option<String>,
+    pub alt: Option<String>
+}
+
+#[post("/{product_id}/images/create")]
+pub async fn create_images(
+    app_data: web::Data::<Arc<Client>>,
+    data: web::Json<Vec<ImageInput>>,
+    request_data: Option<web::ReqData<JWTClaims>>,
+    path: web::Path<uuid::Uuid>
+) -> impl Responder {
+    let claims = request_data.unwrap();
+
+    if !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR) && !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN) {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let product_id = path.into_inner();
+
+    let product_lookup_result = app_data.query_one("SELECT id FROM products WHERE id = $1", &[&product_id]).await;
+
+    if let Err(error) = product_lookup_result {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: error.to_string()
+        });
+    }
+
+    if data.is_empty() {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: "No images were provided.".to_string()
+        });
+    }
+
+    let mut query: String = String::from("INSERT INTO images (product_id, src, srcset, alt) VALUES");
+    let mut parameters = Vec::new();
+    parameters.push(&product_id as &(dyn ToSql + Sync));
+
+    let mut idx = 1;
+    for (image_idx, image) in data.iter().enumerate() {
+        if image_idx == 0 {
+            query.insert_str(query.len(), format!(" ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str());
+        } else {
+            query.insert_str(query.len(), format!(", ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str());
+        }
+        idx += 3;
+
+        parameters.push(&image.src as &(dyn ToSql + Sync));
+        parameters.push(&image.srcset as &(dyn ToSql + Sync));
+        parameters.push(&image.alt as &(dyn ToSql + Sync));
+    }
+
+    let insert_images_result = app_data.query(&query, parameters.as_slice()).await;
+
+    if let Err(error) = insert_images_result {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: error.to_string()
+        });
+    }
+
+    return HttpResponse::Created().finish();
+}
