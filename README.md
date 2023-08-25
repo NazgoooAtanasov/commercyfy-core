@@ -13,9 +13,9 @@ An extensible ecommerce platform written in rust. Build for stability, first-cla
     - [x] Create an image, assigning it to a product (Manager user)
 - [ ] Categories
     - [x] Fetch categories
-    - [x] Fetch specific category
-    - [ ] Create categories (Manager user)
-    - [ ] Assigning prodcts (Manager user)
+    - [ ] Fetch specific category
+    - [x] Create categories (Manager user)
+    - [x] Assigning products (Manager user)
 - [x] Inventories
     - [x] Fetch specific inventory data
     - [x] Creating inventories (Manager user)

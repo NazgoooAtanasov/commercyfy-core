@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{HttpResponse, error};
 use env_logger::Env;
+use routes::category::{create_category, assing_products};
 use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::{signin, ErrorResponse};
 use routes::product::{get_product_inventory, create_product, create_images};
@@ -56,7 +57,6 @@ async fn main() -> Result<(), Error> {
                     .service(get_product)
                     .service(get_product_inventory)
                     .service(create_product)
-
                     .service(create_images)
             )
 
@@ -64,6 +64,8 @@ async fn main() -> Result<(), Error> {
                 web::scope("/categories")
                     .wrap(Authentication)
                     .service(get_categories)
+                    .service(create_category)
+                    .service(assing_products)
             )
 
             .service(
