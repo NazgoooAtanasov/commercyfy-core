@@ -20,3 +20,4 @@ postgres-types = { version = "0.2.5", features = ["derive", "array-impls"]}
 jsonwebtoken = "8.3.0"
 futures-util = "0.3.28"
 dotenv = "0.15.0"
+rust_decimal = { version = "1.32.0", features = ["db-postgres", "db-tokio-postgres"]}
