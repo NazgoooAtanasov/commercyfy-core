@@ -66,3 +66,22 @@ CREATE TABLE inventories_products (
     FOREIGN KEY (product_id) references products(id),
     UNIQUE(inventory_id, product_id)
 );
+
+CREATE TABLE pricebooks (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    pricebook_name VARCHAR NOT NULL UNIQUE,
+    pricebook_reference VARCHAR NOT NULL UNIQUE,
+    pricebook_currency_code VARCHAR NOT NULL
+);
+
+CREATE TABLE pricebooks_products (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+
+    price DECIMAL NOT NULL,
+
+    product_id uuid,
+    pricebook_id uuid,
+    FOREIGN KEY (pricebook_id) references pricebooks(id),
+    FOREIGN KEY (product_id) references products(id),
+    UNIQUE(pricebook_id, product_id)
+);

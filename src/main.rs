@@ -5,6 +5,7 @@ use env_logger::Env;
 use routes::category::{create_category, assing_products, get_category};
 use routes::inventory::{get_inventory, create_inventory, create_record};
 use routes::portal_user::{signin, ErrorResponse};
+use routes::pricebook::get_pricebooks;
 use routes::product::{get_product_inventory, create_product, create_images};
 use tokio_postgres::{Config, NoTls, Error};
 use actix_web::{HttpServer, App, middleware::Logger, web};
@@ -86,6 +87,12 @@ async fn main() -> Result<(), Error> {
             .service(
                 web::scope("/portal-user")
                     .service(signin)
+            )
+
+            .service(
+                web::scope("/pricebooks")
+                    .wrap(Authentication)
+                    .service(get_pricebooks)
             )
 
             .wrap(Logger::default())

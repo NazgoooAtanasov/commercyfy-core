@@ -59,3 +59,9 @@ INSERT INTO inventories_products (inventory_id, product_id, allocation, id) VALU
 
 INSERT INTO portal_users (id, email, first_name, last_name, password, roles) VALUES
 ('60ba424e-caa9-40c8-80bd-6172a3bd49fe', 'root@root.com', 'root', 'root', '$argon2id$v=19$m=19456,t=2,p=1$Z8HzSqALOSpvxlP9igLchQ$Gf30BEPioLBRb9e6/7SlK/8JP3dvngOu3bFN4MFIoMc', '{ADMIN, READER, EDITOR}');
+
+INSERT INTO pricebooks (id, pricebook_name, pricebook_reference, pricebook_currencty_code) VALUES 
+('57c19938-4253-4d25-a98f-5d8a75d78051', 'Global pricebook', 'global-pricebook', 'USD');
+
+INSERT INTO pricebooks_products (id, pricebook_id, product_id, price) VALUES 
+('44d592bc-fd99-4d57-a44d-a6284fb63da0', '57c19938-4253-4d25-a98f-5d8a75d78051', 'c607a4f8-235b-4625-9b1f-7a30bb3e6e45', 100.0);

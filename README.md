@@ -21,6 +21,7 @@ An extensible ecommerce platform written in rust. Build for stability, first-cla
     - [x] Creating inventories (Manager user)
     - [x] Creating inventory records (Manager user)
 - [ ] Pricebooks
+    - [x] List pricebooks (Manager user)
     - [ ] Create pricebook (Manager user)
     - [ ] Assing product to pricebook record (Manager user)
 - [x] Manager user system
