@@ -3,7 +3,7 @@ use postgres_types::ToSql;
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{Client, Row, Error};
 use actix_web::{web, get, Responder, HttpResponse, http::StatusCode, post};
-use crate::routes::{portal_user::{ErrorResponse, JWTClaims}, inventory::ProductInventoryRecord};
+use crate::routes::{portal_user::{ErrorResponse, JWTClaims}, inventory::ProductInventoryRecord, pricebook::PricebookRecord};
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSql)]
 pub struct ProductImage {
@@ -285,4 +285,24 @@ pub async fn create_images(
     }
 
     return HttpResponse::Created().finish();
+}
+
+#[get("/{product_id}/price/{pricebook_id}")]
+pub async fn get_product_price(path: web::Path<(uuid::Uuid, uuid::Uuid)>, app_data: web::Data::<Arc<Client>>) -> impl Responder {
+    let (product_id, pricebook_id) = path.into_inner();
+
+    let product_price_lookup = app_data.query_one(
+        "SELECT product_id, price FROM pricebooks_products WHERE product_id = $1 AND pricebook_id = $2",
+        &[&product_id, &pricebook_id]).await;
+
+
+    if let Err(error) = product_price_lookup {
+        return HttpResponse::BadRequest().json(ErrorResponse {
+            error_message: error.to_string()
+        });
+    }
+
+    let record = PricebookRecord::from(&product_price_lookup.unwrap());
+
+    return HttpResponse::Ok().json(record);
 }

@@ -2,11 +2,11 @@
 An extensible ecommerce platform written in rust. Build for stability, first-class developer experience and ease of use.
 
 ### ROADMAP
-#### Phase 0.1
-- [ ] Products
+#### Phase 1
+- [x] Products
     - [x] Fetch product data
     - [x] Fetch product inventory data
-    - [ ] Fetch product price data
+    - [x] Fetch product price data
     - [x] Create products (Manager user)
 - [x] Product images
     - [x] Create and assign images while creating products (Manager user)

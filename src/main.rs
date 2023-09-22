@@ -7,7 +7,7 @@ use routes::category::{assing_products, create_category, get_category};
 use routes::inventory::{create_inventory, get_inventory};
 use routes::portal_user::{signin, ErrorResponse};
 use routes::pricebook::{create_pricebook, get_pricebooks};
-use routes::product::{create_images, create_product, get_product_inventory};
+use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
 use tokio_postgres::{Config, Error, NoTls};
 
 mod middlewares;
@@ -76,7 +76,8 @@ async fn main() -> Result<(), Error> {
                     .service(get_product)
                     .service(get_product_inventory)
                     .service(create_product)
-                    .service(create_images),
+                    .service(create_images)
+                    .service(get_product_price)
             )
             .service(
                 web::scope("/categories")

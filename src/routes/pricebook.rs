@@ -118,10 +118,19 @@ pub async fn create_pricebook(
     return HttpResponse::Created().finish();
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct PricebookRecord {
     pub product_id: uuid::Uuid,
     pub price: Decimal,
+}
+
+impl From<&Row> for PricebookRecord {
+    fn from(value: &Row) -> Self {
+        return PricebookRecord {
+            product_id: value.get("product_id"),
+            price: value.get("price"),
+        };
+    }
 }
 
 #[post("/{picebook_id}/record")]
