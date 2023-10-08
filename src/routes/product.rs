@@ -3,7 +3,13 @@ use postgres_types::ToSql;
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{Client, Row, Error};
 use actix_web::{web, get, Responder, HttpResponse, http::StatusCode, post};
-use crate::routes::{portal_user::{ErrorResponse, JWTClaims}, inventory::ProductInventoryRecord, pricebook::PricebookRecord};
+use crate::{
+    routes::{
+        portal_user::{ErrorResponse, JWTClaims}, 
+        inventory::ProductInventoryRecord, pricebook::PricebookRecord
+    },
+    schemas::product::{CreateProduct, CreateProductImage}
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, ToSql)]
 pub struct ProductImage {
@@ -108,26 +114,10 @@ pub async fn get_product_inventory(path: web::Path<(String, String)>, app_data: 
     return HttpResponse::Ok().json(product_inventory_record);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProductImageInput {
-    pub src: String,
-    pub alt: String,
-    pub srcset: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProductInput {
-    product_name: String,
-    product_description: String,
-    product_color: Option<String>,
-    product_images: Option<Vec<ProductImageInput>>,
-    category_assignments: Option<Vec<uuid::Uuid>>
-}
-
 #[post("/create")]
 pub async fn create_product(
     app_data: web::Data::<Arc<Client>>,
-    data: web::Json<ProductInput>,
+    data: web::Json<CreateProduct>,
     request_data: Option<web::ReqData<JWTClaims>>
 ) -> impl Responder {
     let claims = request_data.unwrap();
@@ -222,17 +212,10 @@ pub async fn create_product(
     return HttpResponse::Created().finish();
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ImageInput {
-    pub src: String,
-    pub srcset: Option<String>,
-    pub alt: Option<String>
-}
-
 #[post("/{product_id}/images/create")]
 pub async fn create_images(
     app_data: web::Data::<Arc<Client>>,
-    data: web::Json<Vec<ImageInput>>,
+    data: web::Json<Vec<CreateProductImage>>,
     request_data: Option<web::ReqData<JWTClaims>>,
     path: web::Path<uuid::Uuid>
 ) -> impl Responder {

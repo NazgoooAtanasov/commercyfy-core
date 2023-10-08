@@ -4,7 +4,7 @@ use actix_web::{get, web, http::StatusCode, HttpResponse, Responder, post};
 use serde::{Serialize, Deserialize};
 use tokio_postgres::{Client, Row};
 
-use crate::routes::portal_user::{ErrorResponse, JWTClaims};
+use crate::{routes::portal_user::{ErrorResponse, JWTClaims}, schemas::inventory::{CreateInventory, CreateInventoryRecord}};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProductInventoryRecord {
@@ -72,14 +72,8 @@ pub async fn get_inventory(path: web::Path<String>, app_data: web::Data::<Arc<Cl
     return HttpResponse::build(StatusCode::OK).json(inventory);
 }
 
-#[derive(Deserialize)]
-pub struct InventoryCreateInput {
-    inventory_reference: String,
-    inventory_name: String
-}
-
 #[post("/create")]
-pub async fn create_inventory(app_data: web::Data::<Arc<Client>>, data: web::Json<InventoryCreateInput>, request_data: Option<web::ReqData<JWTClaims>>) -> impl Responder {
+pub async fn create_inventory(app_data: web::Data::<Arc<Client>>, data: web::Json<CreateInventory>, request_data: Option<web::ReqData<JWTClaims>>) -> impl Responder {
     let claims = request_data.unwrap();
 
     if !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR) && !claims.roles.contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN) {
@@ -109,17 +103,10 @@ pub async fn create_inventory(app_data: web::Data::<Arc<Client>>, data: web::Jso
     return HttpResponse::Created().finish();
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct InventoryRecordInput {
-    product_id: uuid::Uuid,
-    inventory_id: uuid::Uuid,
-    allocation: i32
-}
-
 #[post("/record")]
 async fn create_record(
     app_data: web::Data::<Arc<Client>>,
-    data: web::Json<InventoryRecordInput>,
+    data: web::Json<CreateInventoryRecord>,
     request_data: Option<web::ReqData<JWTClaims>>,
 ) -> impl Responder {
     let claims = request_data.unwrap();

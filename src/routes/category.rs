@@ -4,7 +4,7 @@ use postgres_types::ToSql;
 use tokio_postgres::{Client, Row};
 use serde::{Deserialize, Serialize};
 
-use crate::routes::{product::Product, portal_user::ErrorResponse};
+use crate::{routes::{product::Product, portal_user::ErrorResponse}, schemas::category::CreateCategory};
 
 use super::portal_user::{JWTClaims, PortalUsersRoles};
 
@@ -59,18 +59,11 @@ pub async fn get_categories(app_data: web::Data<Arc<Client>>) -> impl Responder 
     return HttpResponse::build(StatusCode::SERVICE_UNAVAILABLE).finish();
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CategoryInput {
-    category_name: String,
-    category_description: Option<String>,
-    category_reference: String
-}
-
 #[post("/create")]
 pub async fn create_category(
     app_data: web::Data<Arc<Client>>, 
     request_data: Option<web::ReqData<JWTClaims>>,
-    data: web::Json<CategoryInput>,
+    data: web::Json<CreateCategory>,
 ) -> impl Responder {
     let claims = request_data.unwrap();
 
