@@ -3,14 +3,16 @@ use std::sync::Arc;
 use actix_web::{error, HttpResponse};
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use env_logger::Env;
+use models::error::ErrorResponse;
 use routes::category::{assing_products, create_category, get_category};
 use routes::inventory::{create_inventory, get_inventory};
-use routes::portal_user::{signin, ErrorResponse};
+use routes::portal_user::signin;
 use routes::pricebook::{create_pricebook, get_pricebooks};
 use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
 use tokio_postgres::{Config, Error, NoTls};
 
 mod schemas;
+mod models;
 mod middlewares;
 mod routes;
 use crate::middlewares::authentication::Authentication;

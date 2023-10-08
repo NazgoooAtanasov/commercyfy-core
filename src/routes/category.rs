@@ -1,33 +1,12 @@
 use std::sync::Arc;
 use actix_web::{web, get, Responder, HttpResponse, http::StatusCode, post};
 use postgres_types::ToSql;
-use tokio_postgres::{Client, Row};
-use serde::{Deserialize, Serialize};
-
-use crate::{routes::{product::Product, portal_user::ErrorResponse}, schemas::category::CreateCategory};
-
+use tokio_postgres::Client;
+use crate::{
+    schemas::category::CreateCategory, 
+    models::{product::Product, category::Category, error::ErrorResponse}
+};
 use super::portal_user::{JWTClaims, PortalUsersRoles};
-
-#[derive(Serialize, Deserialize)]
-pub struct Category {
-    id: uuid::Uuid,
-    category_name: String,
-    category_description: Option<String>,
-    category_reference: String,
-    products: Option<Vec<Product>>
-}
-
-impl From<&Row> for Category {
-    fn from(value: &Row) -> Self {
-        return Self {
-            id: value.get("id"),
-            category_name: value.get("category_name"),
-            category_description: value.try_get("category_description").map_or(None, |x| Some(x)),
-            category_reference: value.get("category_reference"),
-            products: None
-        };
-    }
-}
 
 #[get("/list")]
 pub async fn get_categories(app_data: web::Data<Arc<Client>>) -> impl Responder {

@@ -1,32 +1,12 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio_postgres::{Client, Row};
+use tokio_postgres::Client;
 
 use crate::{
-    routes::portal_user::{ErrorResponse, JWTClaims}, 
-    schemas::pricebook::{CreatePricebook, CreatePricebookRecord}
+    routes::portal_user::JWTClaims, 
+    schemas::pricebook::{CreatePricebook, CreatePricebookRecord},
+    models::{pricebook::Pricebook, error::ErrorResponse}
 };
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Pricebook {
-    id: uuid::Uuid,
-    pricebook_name: String,
-    pricebook_reference: String,
-    pricebook_currency_code: String,
-}
-
-impl From<&Row> for Pricebook {
-    fn from(row: &Row) -> Pricebook {
-        return Pricebook {
-            id: row.get("id"),
-            pricebook_name: row.get("pricebook_name"),
-            pricebook_reference: row.get("pricebook_reference"),
-            pricebook_currency_code: row.get("pricebook_currency_code"),
-        };
-    }
-}
 
 #[get("/list")]
 pub async fn get_pricebooks(
@@ -112,21 +92,6 @@ pub async fn create_pricebook(
     }
 
     return HttpResponse::Created().finish();
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct PricebookRecord {
-    pub product_id: uuid::Uuid,
-    pub price: Decimal,
-}
-
-impl From<&Row> for PricebookRecord {
-    fn from(value: &Row) -> Self {
-        return PricebookRecord {
-            product_id: value.get("product_id"),
-            price: value.get("price"),
-        };
-    }
 }
 
 #[post("/{picebook_id}/record")]
