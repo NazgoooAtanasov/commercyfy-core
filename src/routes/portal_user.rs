@@ -12,10 +12,7 @@ use serde::{Deserialize, Serialize};
 use tokio_postgres::{Client, types::{ToSql, FromSql}, Row};
 use jsonwebtoken::{encode, EncodingKey, Header};
 
-#[derive(Serialize, Debug)]
-pub struct ErrorResponse {
-    pub error_message: String
-}
+use crate::models::error::ErrorResponse;
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSql, FromSql, PartialEq)]
 pub enum PortalUsersRoles {
