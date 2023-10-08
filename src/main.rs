@@ -11,10 +11,10 @@ use routes::pricebook::{create_pricebook, get_pricebooks};
 use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
 use tokio_postgres::{Config, Error, NoTls};
 
-mod schemas;
-mod models;
 mod middlewares;
+mod models;
 mod routes;
+mod schemas;
 use crate::middlewares::authentication::Authentication;
 use crate::routes::category::get_categories;
 use crate::routes::portal_user::create_user;
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Error> {
                     .service(get_product_inventory)
                     .service(create_product)
                     .service(create_images)
-                    .service(get_product_price)
+                    .service(get_product_price),
             )
             .service(
                 web::scope("/categories")

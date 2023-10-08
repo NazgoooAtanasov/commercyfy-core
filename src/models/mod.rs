@@ -1,5 +1,5 @@
-pub mod product;
 pub mod category;
+pub mod error;
 pub mod inventory;
 pub mod pricebook;
-pub mod error;
+pub mod product;

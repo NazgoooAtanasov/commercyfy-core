@@ -1,11 +1,13 @@
-use std::future::{ready, Ready};
 use crate::routes::portal_user::JWTClaims;
+use std::future::{ready, Ready};
 
 use actix_web::{
-    dev::{self, Service, ServiceRequest, ServiceResponse, Transform}, Error, HttpResponse, http::StatusCode, HttpMessage
+    dev::{self, Service, ServiceRequest, ServiceResponse, Transform},
+    http::StatusCode,
+    Error, HttpMessage, HttpResponse,
 };
 use futures_util::future::LocalBoxFuture;
-use jsonwebtoken::{Algorithm, Validation, decode, DecodingKey};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
 pub struct Authentication;
 
@@ -26,7 +28,7 @@ where
 }
 
 pub struct AuthenticationMiddleware<S> {
-    service: S
+    service: S,
 }
 
 // @TODO: fix the copy paste that has occured here.
@@ -50,8 +52,7 @@ where
 
                 if auth_header_value.eq("") {
                     let (request, _) = request.into_parts();
-                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED)
-                        .finish();
+                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
 
                     return Box::pin(async {
                         return Ok(ServiceResponse::new(request, response));
@@ -59,11 +60,13 @@ where
                 }
 
                 // @TODO: wtf
-                let token = String::from(auth_header_value).split(" ").skip(1).collect::<String>();
+                let token = String::from(auth_header_value)
+                    .split(" ")
+                    .skip(1)
+                    .collect::<String>();
                 if token.eq("") {
                     let (request, _) = request.into_parts();
-                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED)
-                        .finish();
+                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
 
                     return Box::pin(async {
                         return Ok(ServiceResponse::new(request, response));
@@ -71,28 +74,31 @@ where
                 }
 
                 let validation = Validation::new(Algorithm::HS256);
-                let jwt_token_secret = std::env::var("JWT_TOKEN_SECRET").expect("JWT_TOKEN_SECRET MUST BE SET");
-                
-                match decode::<JWTClaims>(&token, &DecodingKey::from_secret(jwt_token_secret.as_bytes()), &validation) {
+                let jwt_token_secret =
+                    std::env::var("JWT_TOKEN_SECRET").expect("JWT_TOKEN_SECRET MUST BE SET");
+
+                match decode::<JWTClaims>(
+                    &token,
+                    &DecodingKey::from_secret(jwt_token_secret.as_bytes()),
+                    &validation,
+                ) {
                     Ok(t) => {
                         request.extensions_mut().insert(t.claims.clone());
                     }
                     Err(e) => {
                         let (request, _) = request.into_parts();
-                        let response = HttpResponse::build(StatusCode::UNAUTHORIZED)
-                            .finish();
+                        let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
 
                         return Box::pin(async {
                             return Ok(ServiceResponse::new(request, response));
                         });
                     }
                 };
-            },
+            }
 
             None => {
                 let (request, _) = request.into_parts();
-                let response = HttpResponse::build(StatusCode::UNAUTHORIZED)
-                    .finish();
+                let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
 
                 return Box::pin(async {
                     return Ok(ServiceResponse::new(request, response));
