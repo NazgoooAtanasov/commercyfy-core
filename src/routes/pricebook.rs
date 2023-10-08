@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_postgres::{Client, Row};
 
-use crate::routes::portal_user::{ErrorResponse, JWTClaims};
+use crate::{
+    routes::portal_user::{ErrorResponse, JWTClaims}, 
+    schemas::pricebook::{CreatePricebook, CreatePricebookRecord}
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Pricebook {
@@ -58,17 +61,10 @@ pub async fn get_pricebooks(
     return HttpResponse::Ok().json(pricebooks);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct PricebookInput {
-    pub pricebook_name: String,
-    pub pricebook_reference: String,
-    pub pricebook_currency_code: String,
-}
-
 #[post("/create")]
 pub async fn create_pricebook(
     app_data: web::Data<Arc<Client>>,
-    data: web::Json<PricebookInput>,
+    data: web::Json<CreatePricebook>,
     request_data: Option<web::ReqData<JWTClaims>>,
 ) -> impl Responder {
     let claims = request_data.unwrap();
@@ -136,7 +132,7 @@ impl From<&Row> for PricebookRecord {
 #[post("/{picebook_id}/record")]
 pub async fn create_record(
     app_data: web::Data<Arc<Client>>,
-    data: web::Json<PricebookRecord>,
+    data: web::Json<CreatePricebookRecord>,
     path: web::Path<uuid::Uuid>,
     request_data: Option<web::ReqData<JWTClaims>>,
 ) -> impl Responder {

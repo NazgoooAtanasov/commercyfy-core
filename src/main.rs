@@ -10,6 +10,7 @@ use routes::pricebook::{create_pricebook, get_pricebooks};
 use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
 use tokio_postgres::{Config, Error, NoTls};
 
+mod schemas;
 mod middlewares;
 mod routes;
 use crate::middlewares::authentication::Authentication;
