@@ -4,6 +4,7 @@ use actix_web::{error, HttpResponse};
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use env_logger::Env;
 use models::error::ErrorResponse;
+use routes::base_extensions::{process, migrate};
 use routes::category::{assing_products, create_category, get_category};
 use routes::inventory::{create_inventory, get_inventory};
 use routes::portal_user::signin;
@@ -15,6 +16,7 @@ mod middlewares;
 mod models;
 mod routes;
 mod schemas;
+mod migration_generator;
 use crate::middlewares::authentication::Authentication;
 use crate::routes::category::get_categories;
 use crate::routes::portal_user::create_user;
@@ -109,6 +111,12 @@ async fn main() -> Result<(), Error> {
                     .service(get_pricebooks)
                     .service(create_pricebook)
                     .service(routes::pricebook::create_record),
+            )
+            .service(
+                web::scope("/extensions")
+                    // .wrap(Authentication)
+                    .service(process)
+                    .service(migrate),
             )
             .wrap(Logger::default())
     })

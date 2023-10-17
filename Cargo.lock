@@ -486,6 +486,7 @@ dependencies = [
  "regex",
  "rust_decimal",
  "serde",
+ "serde-name",
  "serde_json",
  "tokio",
  "tokio-postgres",
@@ -1350,6 +1351,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-name"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b5b14ebbcc4e4f2b3642fa99c388649da58d1dc3308c7d109f39f565d1710f0"
+dependencies = [
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
