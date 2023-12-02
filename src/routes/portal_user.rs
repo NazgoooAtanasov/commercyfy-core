@@ -23,7 +23,7 @@ pub enum PortalUsersRoles {
 
 #[derive(Deserialize, Debug)]
 pub struct PortalUser {
-    id: uuid::Uuid,
+    _id: uuid::Uuid,
     email: String,
     first_name: String,
     last_name: String,
@@ -34,7 +34,7 @@ pub struct PortalUser {
 impl From<&Row> for PortalUser {
     fn from(row: &Row) -> Self {
         return Self{
-            id: row.get("id"),
+            _id: row.get("id"),
             email: row.get("email"),
             first_name: row.get("first_name"),
             last_name: row.get("last_name"),

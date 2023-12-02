@@ -85,7 +85,7 @@ where
                     Ok(t) => {
                         request.extensions_mut().insert(t.claims.clone());
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         let (request, _) = request.into_parts();
                         let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
 

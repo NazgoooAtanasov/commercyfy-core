@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::schemas::base_extensions::{CreateExtensionField, ExtensionType, CreateExtensionFieldVariant, Field};
+use crate::schemas::base_extensions::{CreateExtensionField, ExtensionType, CreateExtensionFieldVariant};
 
 #[derive(Default)]
 pub struct MigrationGenerator {
