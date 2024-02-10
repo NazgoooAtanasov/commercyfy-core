@@ -10,7 +10,7 @@ use routes::inventory::{create_inventory, get_inventory};
 use routes::portal_user::signin;
 use routes::pricebook::{create_pricebook, get_pricebooks};
 use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
-use tokio_postgres::{Config, Error, NoTls};
+use tokio_postgres::{Error, NoTls};
 
 mod middlewares;
 mod models;
@@ -26,29 +26,11 @@ use crate::routes::product::get_product;
 async fn main() -> Result<(), Error> {
     dotenv::dotenv().ok();
 
-    let (client, conn) = Config::new()
-        .host(
-            std::env::var("POSTGRES_HOST")
-                .expect("POSTGRES_HOST should be set in .env.")
-                .as_str(),
-        )
-        .user(
-            std::env::var("POSTGRES_USER")
-                .expect("POSTGRES_USER should be set in .env.")
-                .as_str(),
-        )
-        .password(
-            std::env::var("POSTGRES_PASSWORD")
-                .expect("POSTGRES_PASSWORD should be set in .env.")
-                .as_str(),
-        )
-        .dbname(
-            std::env::var("POSTGRES_DB")
-                .expect("POSTGRES_DB should be set in .env.")
-                .as_str(),
-        )
-        .connect(NoTls)
-        .await?;
+    let (client, conn) = tokio_postgres::connect(
+        std::env::var("DATABASE_URL").unwrap().as_str(),
+        NoTls
+    ).await?;
+
     let client = Arc::new(client);
 
     tokio::spawn(async move {
@@ -120,7 +102,7 @@ async fn main() -> Result<(), Error> {
             )
             .wrap(Logger::default())
     })
-    .bind(("localhost", 8080))
+    .bind(("0.0.0.0", std::env::var("PORT").unwrap().parse().unwrap()))
     .unwrap_or_else(|_| {
         eprintln!("[ERROR] Failed binding to socket");
         std::process::exit(1);
