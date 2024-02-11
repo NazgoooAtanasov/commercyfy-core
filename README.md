@@ -1,4 +1,4 @@
-# Comercyfy-core
+# Commercyfy-core
 An extensible ecommerce platform written in rust. Build for stability, first-class developer experience and ease of use.
 
 ### ROADMAP
