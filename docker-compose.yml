@@ -9,7 +9,7 @@ services:
           POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
         ports:
-            - ${PORT}:${PORT}
+            - ${POSTGRES_PORT}:${POSTGRES_PORT}
 
         volumes:
             - ./db-data/:/var/lib/postgres/data/

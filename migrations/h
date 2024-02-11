@@ -1,5 +1,0 @@
-INSERT INTO pricebooks (id, pricebook_name, pricebook_reference, pricebook_currency_code) VALUES 
-('57c19938-4253-4d25-a98f-5d8a75d78051', 'Global pricebook', 'global-pricebook', 'USD');
-
-INSERT INTO pricebooks_products (id, pricebook_id, product_id, price) VALUES 
-('44d592bc-fd99-4d57-a44d-a6284fb63da0', '57c19938-4253-4d25-a98f-5d8a75d78051', 'c607a4f8-235b-4625-9b1f-7a30bb3e6e45', 100.0);
