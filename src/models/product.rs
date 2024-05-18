@@ -28,7 +28,8 @@ pub struct Product {
     pub product_name: String,
     pub product_description: String,
     pub product_color: Option<String>,
-    pub product_images: Option<Vec<ProductImage>>
+    pub product_images: Option<Vec<ProductImage>>,
+    pub product_custom_fields: Option<Vec<String>>
 }
 
 impl From<&Row> for Product {
@@ -40,7 +41,8 @@ impl From<&Row> for Product {
             product_color: value
                 .try_get("product_color")
                 .map_or(None, |x| Some(x)),
-            product_images: None
+            product_images: None,
+            product_custom_fields: None
         };
 
         // this check is needed because everywhere, besides the /product/{product_id} route, we
