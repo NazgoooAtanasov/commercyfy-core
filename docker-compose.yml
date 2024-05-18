@@ -2,6 +2,9 @@ version: '3'
 
 services:
     database:
+        build:
+          network: host
+
         image: 'postgres:latest'
 
         environment: 

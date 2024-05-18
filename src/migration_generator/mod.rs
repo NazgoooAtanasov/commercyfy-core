@@ -1,6 +1,8 @@
 use std::io::Write;
 
-use crate::schemas::base_extensions::{CreateExtensionField, ExtensionType, CreateExtensionFieldVariant};
+use crate::schemas::base_extensions::{
+    CreateExtensionField, CreateExtensionFieldVariant, ExtensionType, Field,
+};
 
 #[derive(Default)]
 pub struct MigrationGenerator {
@@ -26,70 +28,58 @@ impl MigrationGenerator {
         return self;
     }
 
+    fn gen_string_extend(
+        &self,
+        string_field: &Field<String>,
+        query: &mut String,
+        table_to_extend: &str,
+    ) {
+        query.push_str(
+            format!(
+                "INSERT INTO {} (name, description, value_type, default_value, mandatory) VALUES ('{}', {}, '{}', {}, {});\n",
+                table_to_extend,
+                string_field.name,
+                string_field.description.clone().unwrap_or("NULL".to_string()),
+                "string",
+                string_field.default_value.clone().unwrap_or("NULL".to_string()),
+                string_field.mandatory
+            ).as_str()
+        );
+    }
+
+    fn gen_boolean_extend(
+        &self,
+        bool_field: &Field<bool>,
+        query: &mut String,
+        table_to_extend: &str,
+    ) {
+        query.push_str(
+            format!(
+                "INSERT INTO {} (name, description, value_type, default_value, mandatory) VALUES ('{}', {}, '{}', {}, {});\n",
+                table_to_extend,
+                bool_field.name,
+                bool_field.description.clone().unwrap_or("NULL".to_string()),
+                "bool",
+                bool_field.default_value.clone().unwrap_or(false),
+                bool_field.mandatory
+            ).as_str()
+        );
+    }
+
     fn generate_query(&self) -> Option<String> {
         return match self.kind {
             Some(ExtensionType::Product) => {
-                let table_to_extend = "products";
+                let table_to_extend = "__meta_product_custom_fields";
                 let mut query = String::new();
 
                 for field in &self.fields {
                     match &field.variant {
-                        CreateExtensionFieldVariant::STRING(
-                            string_field,
-                        ) => {
-                            query.push_str(
-                                format!(
-                                    "ALTER TABLE {table_to_extend} ADD \"{}\" VARCHAR;\n",
-                                    string_field.name
-                                )
-                                .as_str(),
-                            );
-
-                            if let Some(default_value) = &string_field.default_value {
-                                query.push_str(format!("ALTER TABLE {table_to_extend} ALTER COLUMN \"{}\" SET DEFAULT '{}';\n", string_field.name, default_value).as_str());
-                                query.push_str(
-                                    format!(
-                                        "UPDATE {table_to_extend} SET \"{}\" = '{}';\n",
-                                        string_field.name, default_value
-                                    )
-                                    .as_str(),
-                                );
-                            }
-
-                            if string_field.mandatory {
-                                query.push_str(format!("ALTER TABLE {table_to_extend} ALTER COLUMN \"{}\" SET NOT NULL;\n", string_field.name).as_str());
-                            }
-
-                            query.push_str("\n");
+                        CreateExtensionFieldVariant::STRING(strng_field) => {
+                            self.gen_string_extend(strng_field, &mut query, table_to_extend);
                         }
 
-                        CreateExtensionFieldVariant::BOOLEAN(
-                            bool_field,
-                        ) => {
-                            query.push_str(
-                                format!(
-                                    "ALTER TABLE {table_to_extend} ADD \"{}\" BIT;\n",
-                                    bool_field.name
-                                )
-                                .as_str(),
-                            );
-
-                            if let Some(default_value) = bool_field.default_value {
-                                query.push_str(format!("ALTER TABLE {table_to_extend} ALTER COLUMN \"{}\" SET DEFAULT {}::bit(1);\n", bool_field.name, default_value as i32).as_str());
-                                query.push_str(
-                                    format!(
-                                        "UPDATE {table_to_extend} SET \"{}\" = {}::bit(1);\n",
-                                        bool_field.name, default_value as i32
-                                    )
-                                    .as_str(),
-                                );
-                            }
-
-                            if bool_field.mandatory {
-                                query.push_str(format!("ALTER TABLE {table_to_extend} ALTER COLUMN \"{}\" SET NOT NULL;\n", bool_field.name).as_str());
-                            }
-
-                            query.push_str("\n");
+                        CreateExtensionFieldVariant::BOOLEAN(bool_field) => {
+                            self.gen_boolean_extend(bool_field, &mut query, table_to_extend);
                         }
                     }
                 }
@@ -97,14 +87,16 @@ impl MigrationGenerator {
                 Some(query)
             }
             None => None,
-        }
+        };
     }
 
     pub fn generate(self) -> Result<String, String> {
         let migration_query = self.generate_query();
 
         if let None = migration_query {
-            return Err(String::from("Invalid data provided. Migration could not be generated."));
+            return Err(String::from(
+                "Invalid data provided. Migration could not be generated.",
+            ));
         }
 
         let generated_migrations_path = std::path::Path::new("generated_migrations");
@@ -116,9 +108,10 @@ impl MigrationGenerator {
         }
 
         let now = std::time::SystemTime::now();
-        let elapsed = now .duration_since(std::time::UNIX_EPOCH).unwrap();
+        let elapsed = now.duration_since(std::time::UNIX_EPOCH).unwrap();
         let mut generated_migration_path_builder = generated_migrations_path.to_path_buf();
-        generated_migration_path_builder.push(format!("generated-migration-{}.sql", elapsed.as_millis()));
+        generated_migration_path_builder
+            .push(format!("generated-migration-{}.sql", elapsed.as_millis()));
         let generated_migration = generated_migration_path_builder.as_path();
         let create_file = std::fs::File::create(generated_migration);
         if let Err(e) = create_file {
@@ -130,7 +123,7 @@ impl MigrationGenerator {
         if let Err(e) = write_result {
             return Err(e.to_string());
         }
-        
+
         return Ok(generated_migration.to_str().unwrap().to_string());
     }
 }

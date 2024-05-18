@@ -4,6 +4,7 @@ use crate::{
         inventory::ProductInventoryRecord,
         pricebook::PricebookRecord,
         product::{Product, ProductImage},
+        base_extensions::__MetaProductCustomField
     },
     routes::portal_user::JWTClaims,
     schemas::product::{CreateProduct, CreateProductImage},
@@ -189,6 +190,18 @@ pub async fn create_product(
                     error_message: error.to_string(),
                 });
             }
+        }
+    }
+
+    if let Some(custom_fields) = &data.custom_fields {
+        for (key, value) in custom_fields {
+            let metadata_lookup = app_data.query_one("SELECT * FROM __meta_product_custom_fields WHERE name = $1", &[key]).await;
+            if let Err(error) = metadata_lookup {
+                return HttpResponse::BadRequest().json(ErrorResponse {
+                    error_message: error.to_string(),
+                });
+            }
+            let field_metadata:  __MetaProductCustomField = metadata_lookup.unwrap().into();
         }
     }
 
