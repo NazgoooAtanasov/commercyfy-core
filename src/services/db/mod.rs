@@ -2,8 +2,10 @@ use sqlx::QueryBuilder;
 
 use crate::models::category::Category;
 use crate::models::inventory::{Inventory, ProductInventoryRecord};
+use crate::models::pricebook::{Pricebook, PricebookRecord};
 use crate::models::product::{Product, ProductImage};
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
+use crate::schemas::pricebook::{CreatePricebook, CreatePricebookRecord};
 use crate::schemas::product::{CreateProduct, CreateProductImage};
 
 type DbServiceResult<T> = Result<T, sqlx::Error>;
@@ -65,6 +67,28 @@ pub trait DbService {
         &self,
         payload: CreateInventoryRecord,
     ) -> DbServiceResult<ProductInventoryRecord>;
+
+    async fn get_pricebooks(&self) -> DbServiceResult<Vec<Pricebook>>;
+
+    async fn get_pricebook_by_id(&self, id: &str) -> DbServiceResult<Option<Pricebook>>;
+
+    async fn get_pricebook_by_reference(
+        &self,
+        reference: &str,
+    ) -> DbServiceResult<Option<Pricebook>>;
+
+    async fn create_pricebook(&self, payload: CreatePricebook) -> DbServiceResult<Pricebook>;
+
+    async fn create_product_pricebook_record(
+        &self,
+        payload: CreatePricebookRecord,
+    ) -> DbServiceResult<PricebookRecord>;
+
+    async fn get_product_pricebook_record(
+        &self,
+        product_id: &str,
+        pricebook_id: &str,
+    ) -> DbServiceResult<Option<PricebookRecord>>;
 }
 
 pub struct PgDbService {
@@ -205,7 +229,8 @@ impl DbService for PgDbService {
 
     async fn get_inventories(&self) -> DbServiceResult<Vec<Inventory>> {
         return sqlx::query_as::<_, Inventory>("SELECT * FROM inventories")
-            .fetch_all(&self.pool).await;
+            .fetch_all(&self.pool)
+            .await;
     }
 
     async fn get_inventory_records(
@@ -247,5 +272,61 @@ impl DbService for PgDbService {
             .bind(payload.product_id)
             .bind(payload.inventory_id)
             .fetch_one(&self.pool).await;
+    }
+
+    async fn get_pricebooks(&self) -> DbServiceResult<Vec<Pricebook>> {
+        return sqlx::query_as::<_, Pricebook>("SELECT * FROM pricebooks")
+            .fetch_all(&self.pool)
+            .await;
+    }
+
+    async fn get_pricebook_by_id(&self, id: &str) -> DbServiceResult<Option<Pricebook>> {
+        return sqlx::query_as::<_, Pricebook>("SELECT * FROM pricebooks WHERE id::text = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn get_pricebook_by_reference(
+        &self,
+        refernece: &str,
+    ) -> DbServiceResult<Option<Pricebook>> {
+        return sqlx::query_as::<_, Pricebook>(
+            "SELECT * FROM pricebooks WHERE pricebook_reference = $1",
+        )
+        .bind(refernece)
+        .fetch_optional(&self.pool)
+        .await;
+    }
+
+    async fn create_pricebook(&self, payload: CreatePricebook) -> DbServiceResult<Pricebook> {
+        return sqlx::query_as::<_, Pricebook>("INSERT INTO pricebooks (pricebook_name, pricebook_reference, pricebook_currency_code) VALUES ($1, $2, $3) RETURNING *")
+            .bind(payload.pricebook_name)
+            .bind(payload.pricebook_reference)
+            .bind(payload.pricebook_currency_code)
+            .fetch_one(&self.pool).await;
+    }
+
+    async fn create_product_pricebook_record(
+        &self,
+        payload: CreatePricebookRecord,
+    ) -> DbServiceResult<PricebookRecord> {
+        return sqlx::query_as::<_, PricebookRecord>("INSERT INTO pricebooks_products (product_id, pricebook_id, price) VALUES ($1::uuid, $2::uuid, $3) RETURNING *")
+            .bind(payload.product_id)
+            .bind(payload.pricebook_id)
+            .bind(payload.price)
+            .fetch_one(&self.pool).await;
+    }
+
+    async fn get_product_pricebook_record(
+        &self,
+        product_id: &str,
+        pricebook_id: &str,
+    ) -> DbServiceResult<Option<PricebookRecord>> {
+        return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE product_id::text = $1 AND pricebook_id::text = $2")
+            .bind(product_id)
+            .bind(pricebook_id)
+            .fetch_optional(&self.pool)
+            .await;
     }
 }

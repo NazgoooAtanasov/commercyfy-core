@@ -38,8 +38,8 @@ macro_rules! commercyfy_fail {
 pub mod category;
 pub mod product;
 pub mod inventory;
+pub mod pricebook;
 // pub mod portal_user;
-// pub mod pricebook;
 // pub mod product;
 
 // pub mod base_extensions;

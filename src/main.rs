@@ -9,7 +9,16 @@ use axum::{
     serve, Router,
 };
 use routes::{
-    category::{create_category, get_categories, get_category}, inventory::{create_inventory, create_inventory_record, get_inventories, get_inventory, get_inventory_record}, product::{create_product, create_product_image, get_product}
+    category::{create_category, get_categories, get_category},
+    inventory::{
+        create_inventory, create_inventory_record, get_inventories, get_inventory,
+        get_inventory_record,
+    },
+    pricebook::{
+        create_pricebook, create_pricebook_record, get_pricebook, get_pricebook_record,
+        get_pricebooks,
+    },
+    product::{create_product, create_product_image, get_product},
 };
 use services::db::PgDbService;
 use sqlx::postgres::PgPoolOptions;
@@ -50,12 +59,26 @@ pub async fn main() {
         .route("/inventory/:id", get(get_inventory))
         .route("/inventory", post(create_inventory))
         .route("/inventory/record", post(create_inventory_record))
-        .route("/inventory/:inventory/record/:product", get(get_inventory_record));
+        .route(
+            "/inventory/:inventory/record/:product",
+            get(get_inventory_record),
+        );
+
+    let pricebooks = Router::new()
+        .route("/pricebooks", get(get_pricebooks))
+        .route("/pricebook/:id", get(get_pricebook))
+        .route("/pricebook", post(create_pricebook))
+        .route("/pricebook/record", post(create_pricebook_record))
+        .route(
+            "/pricebook/:pricebook/record/:product",
+            get(get_pricebook_record),
+        );
 
     let app = Router::new()
         .merge(categories)
         .merge(product)
         .merge(inventory)
+        .merge(pricebooks)
         .with_state(commercyfy_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
