@@ -1,6 +1,6 @@
-use super::{CommercyfyResponse, CommercyfyResponseData, CreatedEntryResponse};
+use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::{self, category::Category, product::Product},
+    models::{category::Category, product::Product},
     schemas::category::CreateCategory,
     services::db::DbService,
     CommercyfyExtrState,
@@ -13,7 +13,7 @@ use axum::{
 
 pub async fn get_categories(
     State(state): CommercyfyExtrState,
-) -> CommercyfyResponse<Vec<models::category::Category>> {
+) -> CommercyfyResponse<Vec<Category>> {
     let categories = state.db_service.get_categories().await;
 
     if let Err(error) = categories {

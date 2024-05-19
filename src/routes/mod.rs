@@ -16,26 +16,27 @@ pub struct CreatedEntryResponse {
 #[macro_export]
 macro_rules! commercyfy_success {
     ($x: expr) => {
-        (StatusCode::OK, Json(CommercyfyResponseData::Success($x)))
+        (axum::http::StatusCode::OK, axum::Json(crate::routes::CommercyfyResponseData::Success($x)))
     };
 
     ($y: expr, $x: expr) => {
-        ($y, Json(CommercyfyResponseData::Success($x)))
+        ($y, axum::Json(crate::routes::CommercyfyResponseData::Success($x)))
     }
 }
 
 #[macro_export]
 macro_rules! commercyfy_fail {
     ($x: expr) => {
-        (StatusCode::BAD_REQUEST, Json(CommercyfyResponseData::Error{error: $x}))
+        (axum::http::StatusCode::BAD_REQUEST, axum::Json(crate::routes::CommercyfyResponseData::Error{error: $x}))
     };
 
     ($y: expr, $x: expr) => {
-        ($y, Json(CommercyfyResponseData::Error{error: $x}))
+        ($y, axum::Json(crate::routes::CommercyfyResponseData::Error{error: $x}))
     }
 }
 
 pub mod category;
+pub mod product;
 // pub mod inventory;
 // pub mod portal_user;
 // pub mod pricebook;

@@ -1,10 +1,17 @@
 mod models;
-mod schemas; 
-mod services;
 mod routes;
+mod schemas;
+mod services;
 
-use routes::category::{create_category, get_categories, get_category};
-use axum::{extract::State, routing::{get, post}, serve, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    serve, Router,
+};
+use routes::{
+    category::{create_category, get_categories, get_category},
+    product::{create_product, create_product_image, get_product},
+};
 use services::db::PgDbService;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -34,8 +41,14 @@ pub async fn main() {
         .route("/categories", post(create_category))
         .route("/categories/:id", get(get_category));
 
+    let product = Router::new()
+        .route("/product/:id", get(get_product))
+        .route("/product", post(create_product))
+        .route("/product/:id/images", post(create_product_image));
+
     let app = Router::new()
         .merge(categories)
+        .merge(product)
         .with_state(commercyfy_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
