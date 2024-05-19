@@ -3,22 +3,13 @@ name = "commercyfy-core"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-actix-web = "4"
-log = "0.4"
-env_logger = "0.9"
-serde = { version = "1.0", features = ["derive"] }
-tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "array-impls"] }
-tokio = "1.28.2"
-serde_json = "1.0.96"
-serde-name = "0.2.1"
-uuid = { version = "1.3.3", features = ["serde"] }
-argon2 = "0.5.0"
-regex = "1.8.4"
-postgres-types = { version = "0.2.5", features = ["derive", "array-impls"]}
-jsonwebtoken = "8.3.0"
-futures-util = "0.3.28"
+axum = "0.7.5"
 dotenv = "0.15.0"
-rust_decimal = { version = "1.32.0", features = ["db-postgres", "db-tokio-postgres"]}
+rust_decimal = "1.35.0"
+serde = { version = "1.0.202", features = ["derive"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "uuid", "rust_decimal"] }
+tokio = { version = "1.37.0", features = ["full"] }
+
+[dependencies.uuid]
+features = ["serde"]
