@@ -84,10 +84,16 @@ pub async fn get_category(
 
     if let Ok(category) = state.db_service.get_category_by_reference(&id).await {
         if let Some(cat) = category {
-            return commercyfy_success!(CategoryView {
+            let mut category_view = CategoryView {
                 category: cat,
                 products: Vec::new(),
-            });
+            };
+
+            if let Ok(products) = state.db_service.get_category_products_by_id(&category_view.category.id.to_string()).await {
+                category_view.products = products;
+            }
+
+            return commercyfy_success!(category_view);
         }
     }
 

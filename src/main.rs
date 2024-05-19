@@ -9,8 +9,7 @@ use axum::{
     serve, Router,
 };
 use routes::{
-    category::{create_category, get_categories, get_category},
-    product::{create_product, create_product_image, get_product},
+    category::{create_category, get_categories, get_category}, inventory::{create_inventory, create_inventory_record, get_inventories, get_inventory, get_inventory_record}, product::{create_product, create_product_image, get_product}
 };
 use services::db::PgDbService;
 use sqlx::postgres::PgPoolOptions;
@@ -46,9 +45,17 @@ pub async fn main() {
         .route("/product", post(create_product))
         .route("/product/:id/images", post(create_product_image));
 
+    let inventory = Router::new()
+        .route("/inventories", get(get_inventories))
+        .route("/inventory/:id", get(get_inventory))
+        .route("/inventory", post(create_inventory))
+        .route("/inventory/record", post(create_inventory_record))
+        .route("/inventory/:inventory/record/:product", get(get_inventory_record));
+
     let app = Router::new()
         .merge(categories)
         .merge(product)
+        .merge(inventory)
         .with_state(commercyfy_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

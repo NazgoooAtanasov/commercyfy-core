@@ -1,7 +1,9 @@
 use sqlx::QueryBuilder;
 
 use crate::models::category::Category;
+use crate::models::inventory::{Inventory, ProductInventoryRecord};
 use crate::models::product::{Product, ProductImage};
+use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use crate::schemas::product::{CreateProduct, CreateProductImage};
 
 type DbServiceResult<T> = Result<T, sqlx::Error>;
@@ -38,6 +40,31 @@ pub trait DbService {
         id: &str,
         payload: CreateProductImage,
     ) -> DbServiceResult<ProductImage>;
+
+    async fn get_inventories(&self) -> DbServiceResult<Vec<Inventory>>;
+
+    async fn get_inventory_by_id(&self, id: &str) -> DbServiceResult<Option<Inventory>>;
+
+    async fn get_inventory_by_reference(
+        &self,
+        refernece: &str,
+    ) -> DbServiceResult<Option<Inventory>>;
+
+    async fn get_inventory_records(&self, id: &str)
+        -> DbServiceResult<Vec<ProductInventoryRecord>>;
+
+    async fn create_inventory(&self, payload: CreateInventory) -> DbServiceResult<Inventory>;
+
+    async fn get_product_inventory_record(
+        &self,
+        product_id: &str,
+        inventory_id: &str,
+    ) -> DbServiceResult<Option<ProductInventoryRecord>>;
+
+    async fn create_product_inventory_record(
+        &self,
+        payload: CreateInventoryRecord,
+    ) -> DbServiceResult<ProductInventoryRecord>;
 }
 
 pub struct PgDbService {
@@ -155,5 +182,70 @@ impl DbService for PgDbService {
         .bind(payload.alt)
         .fetch_one(&self.pool)
         .await;
+    }
+
+    async fn get_inventory_by_id(&self, id: &str) -> DbServiceResult<Option<Inventory>> {
+        return sqlx::query_as::<_, Inventory>("SELECT * FROM inventories WHERE id::text = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn get_inventory_by_reference(
+        &self,
+        refernece: &str,
+    ) -> DbServiceResult<Option<Inventory>> {
+        return sqlx::query_as::<_, Inventory>(
+            "SELECT * FROM inventories WHERE inventory_reference = $1",
+        )
+        .bind(refernece)
+        .fetch_optional(&self.pool)
+        .await;
+    }
+
+    async fn get_inventories(&self) -> DbServiceResult<Vec<Inventory>> {
+        return sqlx::query_as::<_, Inventory>("SELECT * FROM inventories")
+            .fetch_all(&self.pool).await;
+    }
+
+    async fn get_inventory_records(
+        &self,
+        id: &str,
+    ) -> DbServiceResult<Vec<ProductInventoryRecord>> {
+        return sqlx::query_as::<_, ProductInventoryRecord>("SELECT * FROM inventories_products ip JOIN inventories i on i.id = ip.inventory_id WHERE ip.inventory_id::text = $1")
+            .bind(id)
+            .fetch_all(&self.pool).await;
+    }
+
+    async fn create_inventory(&self, payload: CreateInventory) -> DbServiceResult<Inventory> {
+        return sqlx::query_as::<_, Inventory>(
+            "INSERT INTO inventories (inventory_name, inventory_reference) values ($1, $2) RETURNING *",
+        )
+        .bind(payload.inventory_name)
+        .bind(payload.inventory_reference)
+        .fetch_one(&self.pool)
+        .await;
+    }
+
+    async fn get_product_inventory_record(
+        &self,
+        product_id: &str,
+        inventory_id: &str,
+    ) -> DbServiceResult<Option<ProductInventoryRecord>> {
+        return sqlx::query_as::<_, ProductInventoryRecord>("SELECT * FROM inventories_products WHERE product_id::text = $1 AND inventory_id::text = $2")
+            .bind(product_id)
+            .bind(inventory_id)
+            .fetch_optional(&self.pool).await;
+    }
+
+    async fn create_product_inventory_record(
+        &self,
+        payload: CreateInventoryRecord,
+    ) -> DbServiceResult<ProductInventoryRecord> {
+        return sqlx::query_as::<_, ProductInventoryRecord>("INSERT INTO inventories_products (allocation, product_id, inventory_id) VALUES ($1, $2, $3) RETURNING *")
+            .bind(payload.allocation)
+            .bind(payload.product_id)
+            .bind(payload.inventory_id)
+            .fetch_one(&self.pool).await;
     }
 }
