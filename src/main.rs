@@ -2,6 +2,7 @@ mod models;
 mod routes;
 mod schemas;
 mod services;
+mod middlewares;
 
 use axum::{
     extract::State,
@@ -9,16 +10,13 @@ use axum::{
     serve, Router,
 };
 use routes::{
-    category::{create_category, get_categories, get_category},
-    inventory::{
+    category::{create_category, get_categories, get_category}, inventory::{
         create_inventory, create_inventory_record, get_inventories, get_inventory,
         get_inventory_record,
-    },
-    pricebook::{
+    }, portal::{create_portal_user, get_portal_user, signin_portal_user}, pricebook::{
         create_pricebook, create_pricebook_record, get_pricebook, get_pricebook_record,
         get_pricebooks,
-    },
-    product::{create_product, create_product_image, get_product},
+    }, product::{create_product, create_product_image, get_product}
 };
 use services::db::PgDbService;
 use sqlx::postgres::PgPoolOptions;
@@ -33,6 +31,7 @@ type CommercyfyExtrState = State<Arc<CommercyfyState>>;
 #[tokio::main]
 pub async fn main() {
     dotenv::dotenv().expect("Could not load env variables!");
+    std::env::var("JWT_TOKEN_SECRET").expect("JWT_TOKEN_SECRET was not found in .env!");
 
     let db_connstr = std::env::var("DATABASE_URL").expect("DATABASE_URL was not found in .env!");
     let pool = PgPoolOptions::new()
@@ -74,11 +73,24 @@ pub async fn main() {
             get(get_pricebook_record),
         );
 
-    let app = Router::new()
+    let portal = Router::new()
+        .route("/portal/user/:id", get(get_portal_user))
+        .route("/portal/user", post(create_portal_user));
+
+    let auth_routes = Router::new()
         .merge(categories)
         .merge(product)
         .merge(inventory)
         .merge(pricebooks)
+        .merge(portal)
+        .route_layer(axum::middleware::from_fn(middlewares::authentication::auth));
+
+    let signin = Router::new() 
+        .route("/portal/signin", post(signin_portal_user));
+
+    let app = Router::new()
+        .merge(auth_routes)
+        .merge(signin)
         .with_state(commercyfy_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

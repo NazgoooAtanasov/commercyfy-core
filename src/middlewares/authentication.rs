@@ -1,115 +1,48 @@
-use crate::routes::portal_user::JWTClaims;
-use std::future::{ready, Ready};
+use axum::{extract::Request, http, http::StatusCode, middleware::Next, response::Response};
+use jsonwebtoken::{decode, DecodingKey, Validation};
 
-use actix_web::{
-    dev::{self, Service, ServiceRequest, ServiceResponse, Transform},
-    http::StatusCode,
-    Error, HttpMessage, HttpResponse,
-};
-use futures_util::future::LocalBoxFuture;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use crate::models::portal_user::JWTClaims;
 
-pub struct Authentication;
+pub async fn auth(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+    let auth_header = if let Some(auth_header) = req.headers().get(http::header::AUTHORIZATION) {
+        auth_header
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
 
-impl<S> Transform<S, ServiceRequest> for Authentication
-where
-    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse;
-    type Error = Error;
-    type InitError = ();
-    type Transform = AuthenticationMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(AuthenticationMiddleware { service }))
+    if auth_header.is_empty() {
+        return Err(StatusCode::UNAUTHORIZED);
     }
-}
 
-pub struct AuthenticationMiddleware<S> {
-    service: S,
-}
+    let auth_header_str = if let Ok(string) = auth_header.to_str() {
+        string
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
 
-// @TODO: fix the copy paste that has occured here.
-impl<S> Service<ServiceRequest> for AuthenticationMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    let token = if let Some(token) = auth_header_str.split(" ").skip(1).take(1).nth(0) {
+        token
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
 
-    dev::forward_ready!(service);
-
-    fn call(&self, request: ServiceRequest) -> Self::Future {
-        let authorization = request.headers().get("Authorization");
-
-        match authorization {
-            Some(auth) => {
-                let auth_header_value = auth.to_str().unwrap_or("");
-
-                if auth_header_value.eq("") {
-                    let (request, _) = request.into_parts();
-                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
-
-                    return Box::pin(async {
-                        return Ok(ServiceResponse::new(request, response));
-                    });
-                }
-
-                // @TODO: wtf
-                let token = String::from(auth_header_value)
-                    .split(" ")
-                    .skip(1)
-                    .collect::<String>();
-                if token.eq("") {
-                    let (request, _) = request.into_parts();
-                    let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
-
-                    return Box::pin(async {
-                        return Ok(ServiceResponse::new(request, response));
-                    });
-                }
-
-                let validation = Validation::new(Algorithm::HS256);
-                let jwt_token_secret =
-                    std::env::var("JWT_TOKEN_SECRET").expect("JWT_TOKEN_SECRET MUST BE SET");
-
-                match decode::<JWTClaims>(
-                    &token,
-                    &DecodingKey::from_secret(jwt_token_secret.as_bytes()),
-                    &validation,
-                ) {
-                    Ok(t) => {
-                        request.extensions_mut().insert(t.claims.clone());
-                    }
-                    Err(_e) => {
-                        let (request, _) = request.into_parts();
-                        let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
-
-                        return Box::pin(async {
-                            return Ok(ServiceResponse::new(request, response));
-                        });
-                    }
-                };
-            }
-
-            None => {
-                let (request, _) = request.into_parts();
-                let response = HttpResponse::build(StatusCode::UNAUTHORIZED).finish();
-
-                return Box::pin(async {
-                    return Ok(ServiceResponse::new(request, response));
-                });
-            }
-        }
-
-        let fut = self.service.call(request);
-        return Box::pin(async move {
-            let res = fut.await?;
-            return Ok(res);
-        });
+    let jwt_secret = std::env::var("JWT_TOKEN_SECRET");
+    if let Err(_err) = &jwt_secret {
+        return Err(StatusCode::UNAUTHORIZED);
     }
+
+    let claims = if let Ok(claims) = decode::<JWTClaims>(
+        &token,
+        &DecodingKey::from_secret(&jwt_secret.unwrap().as_bytes()),
+        &Validation::default(),
+    ) {
+        claims
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    req.extensions_mut().insert(claims.claims);
+
+    return Ok(next.run(req).await);
 }
+

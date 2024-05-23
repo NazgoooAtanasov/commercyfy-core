@@ -57,7 +57,7 @@ CREATE TABLE categories_products (
     FOREIGN KEY (product_id) references products(id)
 );
 
-CREATE TYPE "PortalUsersRoles" AS ENUM (
+CREATE TYPE portaluserroles AS ENUM (
     'READER',
     'EDITOR',
     'ADMIN'
@@ -68,7 +68,7 @@ CREATE TABLE portal_users (
     first_name VARCHAR NOT NULL,
     last_name VARCHAR NOT NULL,
     password VARCHAR NOT NULL,
-    roles "PortalUsersRoles"[]
+    roles portaluserroles[]
 );
 
 CREATE TABLE inventories (

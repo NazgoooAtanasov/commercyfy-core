@@ -1,10 +1,17 @@
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    Argon2,
+};
+
 use sqlx::QueryBuilder;
 
-use crate::models::category::Category;
+use crate::models::{category::Category, portal_user::PortalUsersRoles};
 use crate::models::inventory::{Inventory, ProductInventoryRecord};
+use crate::models::portal_user::PortalUser;
 use crate::models::pricebook::{Pricebook, PricebookRecord};
 use crate::models::product::{Product, ProductImage};
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
+use crate::schemas::portal_user::PortalUserCreate;
 use crate::schemas::pricebook::{CreatePricebook, CreatePricebookRecord};
 use crate::schemas::product::{CreateProduct, CreateProductImage};
 
@@ -89,6 +96,12 @@ pub trait DbService {
         product_id: &str,
         pricebook_id: &str,
     ) -> DbServiceResult<Option<PricebookRecord>>;
+
+    async fn get_portal_user(&self, id: &str) -> DbServiceResult<Option<PortalUser>>;
+
+    async fn create_portal_user(&self, payload: PortalUserCreate) -> DbServiceResult<PortalUser>;
+
+    async fn get_portal_user_by_email(&self, email: &str) -> DbServiceResult<Option<PortalUser>>;
 }
 
 pub struct PgDbService {
@@ -326,6 +339,39 @@ impl DbService for PgDbService {
         return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE product_id::text = $1 AND pricebook_id::text = $2")
             .bind(product_id)
             .bind(pricebook_id)
+            .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn get_portal_user(&self, id: &str) -> DbServiceResult<Option<PortalUser>> {
+        return sqlx::query_as::<_, PortalUser>("SELECT * FROM portal_users WHERE id::text = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn create_portal_user(&self, payload: PortalUserCreate) -> DbServiceResult<PortalUser> {
+        let argon2 = Argon2::default();
+        let salt = SaltString::generate(&mut OsRng);
+        let password_hash = argon2.hash_password(payload.password.as_bytes(), &salt);
+        if let Err(_) = password_hash {
+            return Err(sqlx::Error::Io(std::io::ErrorKind::InvalidInput.into()));
+        }
+
+        let hash = password_hash.unwrap().to_string();
+
+        return sqlx::query_as::<_, PortalUser>("INSERT INTO portal_users (email, first_name, last_name, password, roles) VALUES ($1, $2, $3, $4, $5) RETURNING *")
+            .bind(payload.email)
+            .bind(payload.first_name)
+            .bind(payload.last_name)
+            .bind(hash)
+            .bind(payload.roles)
+            .fetch_one(&self.pool).await;
+    }
+
+    async fn get_portal_user_by_email(&self, email: &str) -> DbServiceResult<Option<PortalUser>> {
+        return sqlx::query_as::<_, PortalUser>("SELECT * FROM portal_users WHERE email = $1")
+            .bind(email)
             .fetch_optional(&self.pool)
             .await;
     }
