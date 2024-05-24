@@ -40,6 +40,3 @@ pub mod product;
 pub mod inventory;
 pub mod pricebook;
 pub mod portal;
-// pub mod portal_user;
-
-// pub mod base_extensions;

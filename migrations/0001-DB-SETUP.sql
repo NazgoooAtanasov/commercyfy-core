@@ -7,28 +7,6 @@ CREATE TABLE products (
     product_color VARCHAR
 );
 
-CREATE TABLE product_custom_fields (
-    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
-
-    product_id uuid NOT NULL,
-    FOREIGN KEY (product_id) REFERENCES products(id),
-
-    __meta_custom_field_id uuid NOT NULL,
-    FOREIGN KEY (__meta_custom_field_id) REFERENCES __meta_product_custom_fields(id),
-
-    name VARCHAR NOT NULL UNIQUE,
-    value VARCHAR
-);
-
-CREATE TABLE __meta_product_custom_fields (
-    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
-    name VARCHAR NOT NULL UNIQUE, 
-    description VARCHAR, 
-    value_type VARCHAR NOT NULL, 
-    default_value VARCHAR, 
-    mandatory BOOLEAN
-);
-
 CREATE TABLE images (
     id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY,
     src VARCHAR NOT NULL,

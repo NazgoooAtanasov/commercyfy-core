@@ -5,7 +5,7 @@ use argon2::{
 
 use sqlx::QueryBuilder;
 
-use crate::models::{category::Category, portal_user::PortalUsersRoles};
+use crate::models::category::Category;
 use crate::models::inventory::{Inventory, ProductInventoryRecord};
 use crate::models::portal_user::PortalUser;
 use crate::models::pricebook::{Pricebook, PricebookRecord};
