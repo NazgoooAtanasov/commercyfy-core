@@ -1,16 +1,21 @@
 use std::time::{self, Duration, SystemTime};
 
-use crate::{models::portal_user::JWTClaims, services::db::DbService};
+use crate::{models::portal_user::JWTClaims, services::{db::DbService, role_validation::RoleService}};
 use argon2::{PasswordHash, PasswordVerifier};
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{extract::{Path, State}, http::StatusCode, Extension, Json};
 use jsonwebtoken::{EncodingKey, Header};
 use crate::{models::portal_user::{PortalUser, SignInToken}, schemas::portal_user::{PortalUserCreate, PortalUserSignin}, CommercyfyExtrState};
 use super::{CommercyfyResponse, CreatedEntryResponse};
 
 pub async fn get_portal_user(
+    Extension(claim): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>
 ) -> CommercyfyResponse<PortalUser> {
+    if let Err(err) = state.role_service.validate_admin(&claim) {
+        return commercyfy_fail!(err);
+    }
+
     let portal_user = state.db_service.get_portal_user(&id).await;
     if let Err(err) = portal_user {
         return commercyfy_fail!(err.to_string());
@@ -24,9 +29,14 @@ pub async fn get_portal_user(
 }
 
 pub async fn create_portal_user(
+    Extension(claim): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<PortalUserCreate>
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_admin(&claim) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(err) = payload.validate() {
         return commercyfy_fail!(err);
     }

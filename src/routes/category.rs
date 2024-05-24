@@ -1,19 +1,25 @@
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::{category::Category, product::Product},
+    models::{category::Category, portal_user::{JWTClaims, PortalUsersRoles}, product::Product},
     schemas::category::CreateCategory,
-    services::db::DbService,
+    services::{db::DbService, role_validation::RoleService},
     CommercyfyExtrState,
 };
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    Json,
+    extract::{Path, State}, http::StatusCode, Extension, Json
 };
 
 pub async fn get_categories(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
 ) -> CommercyfyResponse<Vec<Category>> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let categories = state.db_service.get_categories().await;
 
     if let Err(error) = categories {
@@ -24,9 +30,17 @@ pub async fn get_categories(
 }
 
 pub async fn create_category(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreateCategory>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(error) = payload.validate() {
         return commercyfy_fail!(error);
     }
@@ -64,9 +78,17 @@ pub struct CategoryView {
     products: Vec<Product>,
 }
 pub async fn get_category(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>,
 ) -> CommercyfyResponse<CategoryView> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Ok(category) = state.db_service.get_category_by_id(&id).await {
         if let Some(cat) = category {
             let mut category_view = CategoryView {

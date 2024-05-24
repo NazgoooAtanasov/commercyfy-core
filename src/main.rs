@@ -1,8 +1,8 @@
+mod middlewares;
 mod models;
 mod routes;
 mod schemas;
 mod services;
-mod middlewares;
 
 use axum::{
     extract::State,
@@ -10,20 +10,25 @@ use axum::{
     serve, Router,
 };
 use routes::{
-    category::{create_category, get_categories, get_category}, inventory::{
+    category::{create_category, get_categories, get_category},
+    inventory::{
         create_inventory, create_inventory_record, get_inventories, get_inventory,
         get_inventory_record,
-    }, portal::{create_portal_user, get_portal_user, signin_portal_user}, pricebook::{
+    },
+    portal::{create_portal_user, get_portal_user, signin_portal_user},
+    pricebook::{
         create_pricebook, create_pricebook_record, get_pricebook, get_pricebook_record,
         get_pricebooks,
-    }, product::{create_product, create_product_image, get_product}
+    },
+    product::{create_product, create_product_image, get_product},
 };
-use services::db::PgDbService;
+use services::{db::PgDbService, role_validation::RoleValidation};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
 pub struct CommercyfyState {
     pub db_service: PgDbService,
+    pub role_service: RoleValidation 
 }
 
 type CommercyfyExtrState = State<Arc<CommercyfyState>>;
@@ -41,7 +46,11 @@ pub async fn main() {
         .expect("Could not connect to the database!");
 
     let db_service = PgDbService::new(pool);
-    let commercyfy_state = Arc::new(CommercyfyState { db_service });
+    let role_service = RoleValidation::default();
+    let commercyfy_state = Arc::new(CommercyfyState {
+        db_service,
+        role_service,
+    });
 
     let categories = Router::new()
         .route("/categories", get(get_categories))
@@ -85,8 +94,7 @@ pub async fn main() {
         .merge(portal)
         .route_layer(axum::middleware::from_fn(middlewares::authentication::auth));
 
-    let signin = Router::new() 
-        .route("/portal/signin", post(signin_portal_user));
+    let signin = Router::new().route("/portal/signin", post(signin_portal_user));
 
     let app = Router::new()
         .merge(auth_routes)

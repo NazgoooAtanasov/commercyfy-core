@@ -1,16 +1,26 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
+use axum::{Extension, Json};
 
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::models::inventory::ProductInventoryRecord;
+use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use crate::services::db::DbService;
+use crate::services::role_validation::RoleService;
 use crate::{models::inventory::Inventory, CommercyfyExtrState};
 
 pub async fn get_inventories(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
 ) -> CommercyfyResponse<Vec<Inventory>> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let inventories = state.db_service.get_inventories().await;
     if let Err(error) = inventories {
         return commercyfy_fail!(error.to_string());
@@ -26,9 +36,17 @@ pub struct InventoryView {
     records: Vec<ProductInventoryRecord>,
 }
 pub async fn get_inventory(
+    Extension(claims): Extension<JWTClaims>,
     Path(id): Path<String>,
     State(state): CommercyfyExtrState,
 ) -> CommercyfyResponse<InventoryView> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let inventory_id_check = state.db_service.get_inventory_by_id(&id).await;
     if let Err(error) = inventory_id_check {
         return commercyfy_fail!(error.to_string());
@@ -83,9 +101,17 @@ pub async fn get_inventory(
 }
 
 pub async fn create_inventory(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreateInventory>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(error) = payload.validate() {
         return commercyfy_fail!(error.to_string());
     }
@@ -114,9 +140,17 @@ pub async fn create_inventory(
 }
 
 pub async fn create_inventory_record(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreateInventoryRecord>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(error) = payload.validate() {
         return commercyfy_fail!(error);
     }
@@ -186,9 +220,17 @@ pub async fn create_inventory_record(
 }
 
 pub async fn get_inventory_record(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(path): Path<(String, String)>,
 ) -> CommercyfyResponse<ProductInventoryRecord> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let (inventory_id, product_id) = path;
     let record_check = state
         .db_service

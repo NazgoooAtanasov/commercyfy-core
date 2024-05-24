@@ -1,6 +1,6 @@
 use sqlx::postgres::{PgHasArrayType, PgTypeInfo};
 
-#[derive(serde::Serialize, serde::Deserialize, sqlx::Type, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, sqlx::Type, Clone, PartialEq, Eq)]
 #[sqlx(type_name="portaluserroles")]
 pub enum PortalUsersRoles {
     READER,

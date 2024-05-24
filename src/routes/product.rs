@@ -1,11 +1,12 @@
 use super::{CommercyfyResponse, CreatedEntryResponse};
+use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
 use crate::models::product::ProductImage;
 use crate::schemas::product::{CreateProduct, CreateProductImage};
-use crate::services::db::DbService;
+use crate::services::{db::DbService, role_validation::RoleService};
 use crate::{models::product::Product, CommercyfyExtrState};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
+use axum::{Extension, Json};
 
 #[derive(serde::Serialize)]
 pub struct ProductView {
@@ -15,9 +16,17 @@ pub struct ProductView {
 }
 
 pub async fn get_product(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>,
 ) -> CommercyfyResponse<ProductView> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let product_check = state.db_service.get_product(&id).await;
 
     if let Err(error) = product_check {
@@ -46,9 +55,17 @@ pub async fn get_product(
 }
 
 pub async fn create_product(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreateProduct>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(error) = payload.validate() {
         return commercyfy_fail!(error.to_string());
     }
@@ -74,10 +91,18 @@ pub async fn create_product(
 }
 
 pub async fn create_product_image(
+    Extension(claims): Extension<JWTClaims>,
     Path(id): Path<String>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreateProductImage>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(error) = payload.validate() {
         return commercyfy_fail!(error);
     }

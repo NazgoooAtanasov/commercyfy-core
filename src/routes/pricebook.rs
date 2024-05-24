@@ -1,19 +1,25 @@
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::pricebook::{Pricebook, PricebookRecord},
+    models::{portal_user::{JWTClaims, PortalUsersRoles}, pricebook::{Pricebook, PricebookRecord}},
     schemas::pricebook::{CreatePricebook, CreatePricebookRecord},
-    services::db::DbService,
+    services::{db::DbService, role_validation::RoleService},
     CommercyfyExtrState,
 };
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    Json,
+    extract::{Path, State}, http::StatusCode, Extension, Json
 };
 
 pub async fn get_pricebooks(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
 ) -> CommercyfyResponse<Vec<Pricebook>> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let pricebooks = state.db_service.get_pricebooks().await;
     if let Err(error) = pricebooks {
         return commercyfy_fail!(error.to_string());
@@ -23,9 +29,17 @@ pub async fn get_pricebooks(
 }
 
 pub async fn get_pricebook(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>,
 ) -> CommercyfyResponse<Pricebook> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let pricebook = state.db_service.get_pricebook_by_id(&id).await;
     if let Err(err) = pricebook {
         return commercyfy_fail!(err.to_string());
@@ -52,9 +66,17 @@ pub async fn get_pricebook(
 }
 
 pub async fn create_pricebook(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreatePricebook>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(err) = payload.validate() {
         return commercyfy_fail!(err);
     }
@@ -73,9 +95,17 @@ pub async fn create_pricebook(
 }
 
 pub async fn create_pricebook_record(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Json(payload): Json<CreatePricebookRecord>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     if let Err(err) = payload.validate() {
         return commercyfy_fail!(err);
     }
@@ -122,9 +152,17 @@ pub async fn create_pricebook_record(
 }
 
 pub async fn get_pricebook_record(
+    Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(path): Path<(String, String)>
 ) -> CommercyfyResponse<PricebookRecord> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
     let (pricebook_id, product_id) = path;
 
     let pricebook_record = state.db_service.get_product_pricebook_record(&product_id, &pricebook_id).await;
