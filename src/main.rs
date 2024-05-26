@@ -3,6 +3,7 @@ mod models;
 mod routes;
 mod schemas;
 mod services;
+mod utils;
 
 use axum::{
     extract::State,
@@ -10,6 +11,7 @@ use axum::{
     serve, Router,
 };
 use routes::{
+    base_extensions::{create_extension, get_extensions},
     category::{create_category, get_categories, get_category},
     inventory::{
         create_inventory, create_inventory_record, get_inventories, get_inventory,
@@ -22,13 +24,14 @@ use routes::{
     },
     product::{create_product, create_product_image, get_product},
 };
-use services::{db::PgDbService, role_validation::RoleValidation};
+use services::{db::PgDbService, role_validation::RoleValidation, unstructureddb::MongoDb};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
 pub struct CommercyfyState {
     pub db_service: PgDbService,
-    pub role_service: RoleValidation 
+    pub role_service: RoleValidation,
+    pub unstructureddb: MongoDb,
 }
 
 type CommercyfyExtrState = State<Arc<CommercyfyState>>;
@@ -45,11 +48,26 @@ pub async fn main() {
         .await
         .expect("Could not connect to the database!");
 
+    let mongo_client = mongodb::Client::with_uri_str(
+        std::env::var("MONGODB_URL").expect("MONGODB_URL was not found in .env!"),
+    )
+    .await
+    .expect("Could not connect to mongodb!");
+    let mongodb = mongo_client.database("commercyfy-core");
+
     let db_service = PgDbService::new(pool);
     let role_service = RoleValidation::default();
+    let unstructureddb = MongoDb::new(mongodb);
+
+    unstructureddb
+        .validate_collections()
+        .await
+        .expect("There was an error with creating the needed collections for the usntructureddb.");
+
     let commercyfy_state = Arc::new(CommercyfyState {
         db_service,
         role_service,
+        unstructureddb,
     });
 
     let categories = Router::new()
@@ -96,9 +114,14 @@ pub async fn main() {
 
     let signin = Router::new().route("/portal/signin", post(signin_portal_user));
 
+    let extensions = Router::new()
+        .route("/extensions/:object", get(get_extensions))
+        .route("/extensions", post(create_extension));
+
     let app = Router::new()
         .merge(auth_routes)
         .merge(signin)
+        .merge(extensions)
         .with_state(commercyfy_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

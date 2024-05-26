@@ -1,11 +1,14 @@
 use rust_decimal::Decimal;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+
+use super::base_extensions::ObjectCustomFields;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreatePricebook {
     pub pricebook_name: String,
     pub pricebook_reference: String,
     pub pricebook_currency_code: String,
+    pub custom_fields: ObjectCustomFields,
 }
 
 impl CreatePricebook {

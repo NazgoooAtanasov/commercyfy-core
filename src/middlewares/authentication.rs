@@ -45,4 +45,3 @@ pub async fn auth(mut req: Request, next: Next) -> Result<Response, StatusCode> 
 
     return Ok(next.run(req).await);
 }
-

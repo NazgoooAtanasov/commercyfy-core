@@ -10,33 +10,46 @@ pub type CommercyfyResponse<T> = (axum::http::StatusCode, Json<CommercyfyRespons
 
 #[derive(serde::Serialize, Debug)]
 pub struct CreatedEntryResponse {
-    pub id: sqlx::types::Uuid
+    pub id: sqlx::types::Uuid,
 }
 
 #[macro_export]
 macro_rules! commercyfy_success {
     ($x: expr) => {
-        (axum::http::StatusCode::OK, axum::Json(crate::routes::CommercyfyResponseData::Success($x)))
+        (
+            axum::http::StatusCode::OK,
+            axum::Json(crate::routes::CommercyfyResponseData::Success($x)),
+        )
     };
 
     ($y: expr, $x: expr) => {
-        ($y, axum::Json(crate::routes::CommercyfyResponseData::Success($x)))
-    }
+        (
+            $y,
+            axum::Json(crate::routes::CommercyfyResponseData::Success($x)),
+        )
+    };
 }
 
 #[macro_export]
 macro_rules! commercyfy_fail {
     ($x: expr) => {
-        (axum::http::StatusCode::BAD_REQUEST, axum::Json(crate::routes::CommercyfyResponseData::Error{error: $x}))
+        (
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(crate::routes::CommercyfyResponseData::Error { error: $x }),
+        )
     };
 
     ($y: expr, $x: expr) => {
-        ($y, axum::Json(crate::routes::CommercyfyResponseData::Error{error: $x}))
-    }
+        (
+            $y,
+            axum::Json(crate::routes::CommercyfyResponseData::Error { error: $x }),
+        )
+    };
 }
 
+pub mod base_extensions;
 pub mod category;
-pub mod product;
 pub mod inventory;
-pub mod pricebook;
 pub mod portal;
+pub mod pricebook;
+pub mod product;

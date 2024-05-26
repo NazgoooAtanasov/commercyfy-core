@@ -1,13 +1,19 @@
+use std::collections::HashMap;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 
 use super::{CommercyfyResponse, CreatedEntryResponse};
+use crate::models::base_extensions::FieldExtensionObject;
 use crate::models::inventory::ProductInventoryRecord;
 use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use crate::services::db::DbService;
 use crate::services::role_validation::RoleService;
+use crate::services::unstructureddb::entry::UnstructuredEntryType;
+use crate::services::unstructureddb::UnstructuredDb;
+use crate::utils::custom_fields::create_custom_fields;
 use crate::{models::inventory::Inventory, CommercyfyExtrState};
 
 pub async fn get_inventories(
@@ -34,6 +40,7 @@ pub struct InventoryView {
     #[serde(flatten)]
     inventory: Inventory,
     records: Vec<ProductInventoryRecord>,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
 }
 pub async fn get_inventory(
     Extension(claims): Extension<JWTClaims>,
@@ -57,6 +64,7 @@ pub async fn get_inventory(
         let mut inventory_view = InventoryView {
             inventory,
             records: Vec::new(),
+            custom_fields: HashMap::new(),
         };
 
         let records_check = state
@@ -66,6 +74,21 @@ pub async fn get_inventory(
 
         if let Ok(records) = records_check {
             inventory_view.records = records;
+        }
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::INVENTORY,
+                &inventory_view.inventory.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                inventory_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
         }
 
         return commercyfy_success!(inventory_view);
@@ -81,6 +104,7 @@ pub async fn get_inventory(
         let mut inventory_view = InventoryView {
             inventory,
             records: Vec::new(),
+            custom_fields: HashMap::new(),
         };
 
         if let Ok(records) = state
@@ -89,6 +113,21 @@ pub async fn get_inventory(
             .await
         {
             inventory_view.records = records;
+        }
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::INVENTORY,
+                &inventory_view.inventory.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                inventory_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
         }
 
         return commercyfy_success!(inventory_view);
@@ -124,19 +163,28 @@ pub async fn create_inventory(
         return commercyfy_fail!(error.to_string());
     }
 
-    let inventory = exists.unwrap();
-    if let Some(_) = inventory {
+    let inventory_check = exists.unwrap();
+    if let Some(_) = inventory_check {
         return commercyfy_fail!(format!("Inventory with that reference already exists"));
     }
 
-    let inventory = state.db_service.create_inventory(payload).await;
-    if let Err(error) = inventory {
-        return commercyfy_fail!(error.to_string());
+    let inventory = match state.db_service.create_inventory(&payload).await {
+        Ok(inv) => inv,
+        Err(error) => return commercyfy_fail!(error.to_string()),
+    };
+
+    if let Err(err) = create_custom_fields(
+        state,
+        inventory.id.to_string(),
+        FieldExtensionObject::INVENTORY,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err.to_string());
     }
 
-    return commercyfy_success!(CreatedEntryResponse {
-        id: inventory.unwrap().id
-    });
+    return commercyfy_success!(CreatedEntryResponse { id: inventory.id });
 }
 
 pub async fn create_inventory_record(

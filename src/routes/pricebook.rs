@@ -1,12 +1,25 @@
+use std::collections::HashMap;
+
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::{portal_user::{JWTClaims, PortalUsersRoles}, pricebook::{Pricebook, PricebookRecord}},
+    models::{
+        base_extensions::FieldExtensionObject,
+        portal_user::{JWTClaims, PortalUsersRoles},
+        pricebook::{Pricebook, PricebookRecord},
+    },
     schemas::pricebook::{CreatePricebook, CreatePricebookRecord},
-    services::{db::DbService, role_validation::RoleService},
+    services::{
+        db::DbService,
+        role_validation::RoleService,
+        unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
+    },
+    utils::custom_fields::create_custom_fields,
     CommercyfyExtrState,
 };
 use axum::{
-    extract::{Path, State}, http::StatusCode, Extension, Json
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
 };
 
 pub async fn get_pricebooks(
@@ -28,11 +41,17 @@ pub async fn get_pricebooks(
     return commercyfy_success!(pricebooks.unwrap());
 }
 
+#[derive(serde::Serialize)]
+pub struct PricebookView {
+    #[serde(flatten)]
+    pricebook: Pricebook,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
+}
 pub async fn get_pricebook(
     Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>,
-) -> CommercyfyResponse<Pricebook> {
+) -> CommercyfyResponse<PricebookView> {
     if let Err(err) = state.role_service.validate_any(
         &claims,
         vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
@@ -45,7 +64,27 @@ pub async fn get_pricebook(
         return commercyfy_fail!(err.to_string());
     }
     if let Some(pricebook) = pricebook.unwrap() {
-        return commercyfy_success!(pricebook);
+        let mut pricebook_view = PricebookView {
+            pricebook,
+            custom_fields: HashMap::new(),
+        };
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::PRICEBOOK,
+                &pricebook_view.pricebook.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                pricebook_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
+        }
+
+        return commercyfy_success!(pricebook_view);
     }
 
     let pricebook = state.db_service.get_pricebook_by_reference(&id).await;
@@ -53,7 +92,27 @@ pub async fn get_pricebook(
         return commercyfy_fail!(err.to_string());
     }
     if let Some(pricebook) = pricebook.unwrap() {
-        return commercyfy_success!(pricebook);
+        let mut pricebook_view = PricebookView {
+            pricebook,
+            custom_fields: HashMap::new(),
+        };
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::PRICEBOOK,
+                &pricebook_view.pricebook.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                pricebook_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
+        }
+
+        return commercyfy_success!(pricebook_view);
     }
 
     return commercyfy_fail!(
@@ -81,15 +140,26 @@ pub async fn create_pricebook(
         return commercyfy_fail!(err);
     }
 
-    let pricebook_creation = state.db_service.create_pricebook(payload).await;
-    if let Err(err) = pricebook_creation {
-        return commercyfy_fail!(err.to_string());
+    let pricebook_creation = match state.db_service.create_pricebook(&payload).await {
+        Ok(pricebook) => pricebook,
+        Err(err) => return commercyfy_fail!(err.to_string()),
+    };
+
+    if let Err(err) = create_custom_fields(
+        state,
+        pricebook_creation.id.to_string(),
+        FieldExtensionObject::PRICEBOOK,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err);
     }
 
     return commercyfy_success!(
         StatusCode::CREATED,
         CreatedEntryResponse {
-            id: pricebook_creation.unwrap().id
+            id: pricebook_creation.id
         }
     );
 }
@@ -154,7 +224,7 @@ pub async fn create_pricebook_record(
 pub async fn get_pricebook_record(
     Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
-    Path(path): Path<(String, String)>
+    Path(path): Path<(String, String)>,
 ) -> CommercyfyResponse<PricebookRecord> {
     if let Err(err) = state.role_service.validate_any(
         &claims,
@@ -165,7 +235,10 @@ pub async fn get_pricebook_record(
 
     let (pricebook_id, product_id) = path;
 
-    let pricebook_record = state.db_service.get_product_pricebook_record(&product_id, &pricebook_id).await;
+    let pricebook_record = state
+        .db_service
+        .get_product_pricebook_record(&product_id, &pricebook_id)
+        .await;
 
     if let Err(err) = pricebook_record {
         return commercyfy_fail!(err.to_string());
@@ -175,5 +248,8 @@ pub async fn get_pricebook_record(
         return commercyfy_success!(pricebook_record);
     }
 
-    return commercyfy_fail!(StatusCode::NOT_FOUND, format!("There is no pricebook record with the provided ids."));
+    return commercyfy_fail!(
+        StatusCode::NOT_FOUND,
+        format!("There is no pricebook record with the provided ids.")
+    );
 }

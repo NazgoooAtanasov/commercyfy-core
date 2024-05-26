@@ -1,10 +1,11 @@
-use serde::{Serialize, Deserialize};
+use super::base_extensions::ObjectCustomFields;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct CreateCategory {
     pub category_name: String,
     pub category_description: Option<String>,
-    pub category_reference: String
+    pub category_reference: String,
+    pub custom_fields: ObjectCustomFields,
 }
 
 impl CreateCategory {
@@ -14,7 +15,7 @@ impl CreateCategory {
         }
 
         if self.category_name.is_empty() {
-            return Err("\"category_name\" is a required field".to_string())
+            return Err("\"category_name\" is a required field".to_string());
         }
 
         return Ok(());

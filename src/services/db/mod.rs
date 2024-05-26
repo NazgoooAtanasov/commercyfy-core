@@ -5,15 +5,24 @@ use argon2::{
 
 use sqlx::QueryBuilder;
 
-use crate::models::category::Category;
-use crate::models::inventory::{Inventory, ProductInventoryRecord};
-use crate::models::portal_user::PortalUser;
 use crate::models::pricebook::{Pricebook, PricebookRecord};
 use crate::models::product::{Product, ProductImage};
+use crate::models::{
+    base_extensions::FieldExtensionType,
+    inventory::{Inventory, ProductInventoryRecord},
+};
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use crate::schemas::portal_user::PortalUserCreate;
 use crate::schemas::pricebook::{CreatePricebook, CreatePricebookRecord};
 use crate::schemas::product::{CreateProduct, CreateProductImage};
+use crate::{models::portal_user::PortalUser, schemas::base_extensions::CreateCustomFieldEntry};
+use crate::{
+    models::{
+        base_extensions::{FieldExtension, FieldExtensionObject},
+        category::Category,
+    },
+    schemas::base_extensions::CreateCustomField,
+};
 
 type DbServiceResult<T> = Result<T, sqlx::Error>;
 
@@ -22,7 +31,7 @@ pub trait DbService {
 
     async fn create_category(
         &self,
-        category: crate::schemas::category::CreateCategory,
+        category: &crate::schemas::category::CreateCategory,
     ) -> DbServiceResult<Category>;
 
     async fn get_category_by_id(&self, id: &str) -> DbServiceResult<Option<Category>>;
@@ -36,7 +45,7 @@ pub trait DbService {
 
     async fn get_product_images(&self, id: &str) -> DbServiceResult<Vec<ProductImage>>;
 
-    async fn create_product(&self, payload: CreateProduct) -> DbServiceResult<Product>;
+    async fn create_product(&self, payload: &CreateProduct) -> DbServiceResult<Product>;
 
     async fn create_product_category_assignment(
         &self,
@@ -62,7 +71,7 @@ pub trait DbService {
     async fn get_inventory_records(&self, id: &str)
         -> DbServiceResult<Vec<ProductInventoryRecord>>;
 
-    async fn create_inventory(&self, payload: CreateInventory) -> DbServiceResult<Inventory>;
+    async fn create_inventory(&self, payload: &CreateInventory) -> DbServiceResult<Inventory>;
 
     async fn get_product_inventory_record(
         &self,
@@ -84,7 +93,7 @@ pub trait DbService {
         reference: &str,
     ) -> DbServiceResult<Option<Pricebook>>;
 
-    async fn create_pricebook(&self, payload: CreatePricebook) -> DbServiceResult<Pricebook>;
+    async fn create_pricebook(&self, payload: &CreatePricebook) -> DbServiceResult<Pricebook>;
 
     async fn create_product_pricebook_record(
         &self,
@@ -102,6 +111,22 @@ pub trait DbService {
     async fn create_portal_user(&self, payload: PortalUserCreate) -> DbServiceResult<PortalUser>;
 
     async fn get_portal_user_by_email(&self, email: &str) -> DbServiceResult<Option<PortalUser>>;
+
+    async fn create_custom_field(
+        &self,
+        payload: CreateCustomField,
+    ) -> DbServiceResult<FieldExtension>;
+
+    async fn get_custom_field(
+        &self,
+        object_type: FieldExtensionObject,
+        field_name: &str,
+    ) -> DbServiceResult<Option<FieldExtension>>;
+
+    async fn get_custom_fields(
+        &self,
+        object_type: FieldExtensionObject,
+    ) -> DbServiceResult<Vec<FieldExtension>>;
 }
 
 pub struct PgDbService {
@@ -123,12 +148,12 @@ impl DbService for PgDbService {
 
     async fn create_category(
         &self,
-        category: crate::schemas::category::CreateCategory,
+        category: &crate::schemas::category::CreateCategory,
     ) -> Result<Category, sqlx::Error> {
         return sqlx::query_as("INSERT INTO categories (category_name, category_description, category_reference) VALUES ($1, $2, $3) RETURNING *")
-            .bind(category.category_name)
-            .bind(category.category_description)
-            .bind(category.category_reference)
+            .bind(&category.category_name)
+            .bind(&category.category_description)
+            .bind(&category.category_reference)
             .fetch_one(&self.pool).await;
     }
 
@@ -174,11 +199,11 @@ impl DbService for PgDbService {
         .await;
     }
 
-    async fn create_product(&self, payload: CreateProduct) -> DbServiceResult<Product> {
+    async fn create_product(&self, payload: &CreateProduct) -> DbServiceResult<Product> {
         return sqlx::query_as::<_, Product>("INSERT INTO products (product_name, product_description, product_color) VALUES ($1, $2, $3) RETURNING *")
-            .bind(payload.product_name)
-            .bind(payload.product_description)
-            .bind(payload.product_color)
+            .bind(&payload.product_name)
+            .bind(&payload.product_description)
+            .bind(&payload.product_color)
             .fetch_one(&self.pool)
             .await;
     }
@@ -255,12 +280,12 @@ impl DbService for PgDbService {
             .fetch_all(&self.pool).await;
     }
 
-    async fn create_inventory(&self, payload: CreateInventory) -> DbServiceResult<Inventory> {
+    async fn create_inventory(&self, payload: &CreateInventory) -> DbServiceResult<Inventory> {
         return sqlx::query_as::<_, Inventory>(
             "INSERT INTO inventories (inventory_name, inventory_reference) values ($1, $2) RETURNING *",
         )
-        .bind(payload.inventory_name)
-        .bind(payload.inventory_reference)
+        .bind(&payload.inventory_name)
+        .bind(&payload.inventory_reference)
         .fetch_one(&self.pool)
         .await;
     }
@@ -312,11 +337,11 @@ impl DbService for PgDbService {
         .await;
     }
 
-    async fn create_pricebook(&self, payload: CreatePricebook) -> DbServiceResult<Pricebook> {
+    async fn create_pricebook(&self, payload: &CreatePricebook) -> DbServiceResult<Pricebook> {
         return sqlx::query_as::<_, Pricebook>("INSERT INTO pricebooks (pricebook_name, pricebook_reference, pricebook_currency_code) VALUES ($1, $2, $3) RETURNING *")
-            .bind(payload.pricebook_name)
-            .bind(payload.pricebook_reference)
-            .bind(payload.pricebook_currency_code)
+            .bind(&payload.pricebook_name)
+            .bind(&payload.pricebook_reference)
+            .bind(&payload.pricebook_currency_code)
             .fetch_one(&self.pool).await;
     }
 
@@ -374,5 +399,61 @@ impl DbService for PgDbService {
             .bind(email)
             .fetch_optional(&self.pool)
             .await;
+    }
+
+    async fn create_custom_field(
+        &self,
+        payload: CreateCustomField,
+    ) -> DbServiceResult<FieldExtension> {
+        let field_type = match payload.custom {
+            CreateCustomFieldEntry::STRING(_) => FieldExtensionType::STRING,
+            CreateCustomFieldEntry::INT => FieldExtensionType::INT,
+        };
+
+        let max_len = match &payload.custom {
+            CreateCustomFieldEntry::STRING(fields) => Some(fields.max_len),
+            _ => None,
+        };
+
+        let min_len = match &payload.custom {
+            CreateCustomFieldEntry::STRING(fields) => Some(fields.min_len),
+            _ => None,
+        };
+
+        return sqlx::query_as::<_, FieldExtension>("INSERT INTO _metadata_custom_fields (object, type, name, description, mandatory, max_len, min_len) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *")
+            .bind(payload.object)
+            .bind(field_type)
+            .bind(payload.base_felds.name)
+            .bind(payload.base_felds.description)
+            .bind(payload.base_felds.mandatory)
+            .bind(max_len)
+            .bind(min_len)
+            .fetch_one(&self.pool).await;
+    }
+
+    async fn get_custom_field(
+        &self,
+        object_type: FieldExtensionObject,
+        field_name: &str,
+    ) -> DbServiceResult<Option<FieldExtension>> {
+        return sqlx::query_as::<_, FieldExtension>(
+            "SELECT * FROM _metadata_custom_fields WHERE object = $1 AND name = $2",
+        )
+        .bind(object_type)
+        .bind(field_name)
+        .fetch_optional(&self.pool)
+        .await;
+    }
+
+    async fn get_custom_fields(
+        &self,
+        object_type: FieldExtensionObject,
+    ) -> DbServiceResult<Vec<FieldExtension>> {
+        return sqlx::query_as::<_, FieldExtension>(
+            "SELECT * FROM _metadata_custom_fields WHERE object = $1",
+        )
+        .bind(object_type)
+        .fetch_all(&self.pool)
+        .await;
     }
 }

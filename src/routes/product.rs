@@ -1,8 +1,15 @@
+use std::collections::HashMap;
+
 use super::{CommercyfyResponse, CreatedEntryResponse};
+use crate::models::base_extensions::FieldExtensionObject;
 use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
 use crate::models::product::ProductImage;
 use crate::schemas::product::{CreateProduct, CreateProductImage};
-use crate::services::{db::DbService, role_validation::RoleService};
+use crate::services::unstructureddb::entry::UnstructuredEntryType;
+use crate::services::{
+    db::DbService, role_validation::RoleService, unstructureddb::UnstructuredDb,
+};
+use crate::utils::custom_fields::create_custom_fields;
 use crate::{models::product::Product, CommercyfyExtrState};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -13,6 +20,7 @@ pub struct ProductView {
     #[serde(flatten)]
     product: Product,
     images: Vec<ProductImage>,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
 }
 
 pub async fn get_product(
@@ -44,11 +52,27 @@ pub async fn get_product(
     let mut product_view = ProductView {
         product: product.unwrap(),
         images: Vec::new(),
+        custom_fields: HashMap::new(),
     };
 
     let images_check = state.db_service.get_product_images(&id).await;
     if let Ok(images) = images_check {
         product_view.images = images;
+    }
+
+    if let Ok(custom_fields) = state
+        .unstructureddb
+        .get_custom_fields(
+            FieldExtensionObject::PRODUCT,
+            &product_view.product.id.to_string(),
+        )
+        .await
+    {
+        for field in custom_fields {
+            product_view
+                .custom_fields
+                .insert(field.field_name, field.value);
+        }
     }
 
     return commercyfy_success!(product_view);
@@ -71,7 +95,7 @@ pub async fn create_product(
     }
 
     let category_assignments = payload.category_assignments.clone();
-    let product_create = state.db_service.create_product(payload).await;
+    let product_create = state.db_service.create_product(&payload).await;
     if let Err(err) = product_create {
         return commercyfy_fail!(err.to_string());
     }
@@ -85,6 +109,17 @@ pub async fn create_product(
         {
             return commercyfy_fail!(format!("Assignment failed because: {}, but the cretion of the product should be successfull", error.to_string()));
         }
+    }
+
+    if let Err(err) = create_custom_fields(
+        state,
+        product.id.to_string(),
+        FieldExtensionObject::PRODUCT,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err);
     }
 
     return commercyfy_success!(StatusCode::CREATED, CreatedEntryResponse { id: product.id });

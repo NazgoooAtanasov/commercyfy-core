@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+use super::base_extensions::ObjectCustomFields;
+
 #[derive(Deserialize)]
 pub struct CreateInventory {
     pub inventory_reference: String,
-    pub inventory_name: String
+    pub inventory_name: String,
+    pub custom_fields: ObjectCustomFields,
 }
 
 impl CreateInventory {
@@ -24,7 +27,7 @@ impl CreateInventory {
 pub struct CreateInventoryRecord {
     pub product_id: uuid::Uuid,
     pub inventory_id: uuid::Uuid,
-    pub allocation: i32
+    pub allocation: i32,
 }
 
 impl CreateInventoryRecord {

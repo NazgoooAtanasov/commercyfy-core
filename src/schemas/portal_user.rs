@@ -4,7 +4,7 @@ pub struct PortalUserCreate {
     pub first_name: String,
     pub last_name: String,
     pub password: String,
-    pub roles: Vec<crate::models::portal_user::PortalUsersRoles>
+    pub roles: Vec<crate::models::portal_user::PortalUsersRoles>,
 }
 
 impl PortalUserCreate {
@@ -36,7 +36,7 @@ impl PortalUserCreate {
 #[derive(serde::Deserialize)]
 pub struct PortalUserSignin {
     pub email: String,
-    pub password: String
+    pub password: String,
 }
 
 impl PortalUserSignin {

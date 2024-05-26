@@ -1,11 +1,11 @@
 use sqlx::postgres::{PgHasArrayType, PgTypeInfo};
 
 #[derive(serde::Serialize, serde::Deserialize, sqlx::Type, Clone, PartialEq, Eq)]
-#[sqlx(type_name="portaluserroles")]
+#[sqlx(type_name = "portaluserroles")]
 pub enum PortalUsersRoles {
     READER,
     EDITOR,
-    ADMIN
+    ADMIN,
 }
 
 impl PgHasArrayType for PortalUsersRoles {
@@ -24,17 +24,17 @@ pub struct PortalUser {
     #[serde(skip_serializing)]
     pub password: String,
 
-    pub roles: Vec<PortalUsersRoles>
+    pub roles: Vec<PortalUsersRoles>,
 }
 
 #[derive(serde::Serialize)]
 pub struct SignInToken {
-    pub jwt: String
+    pub jwt: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct JWTClaims {
     pub email: String,
     pub exp: u64,
-    pub roles: Vec<PortalUsersRoles>
+    pub roles: Vec<PortalUsersRoles>,
 }

@@ -1,45 +1,54 @@
-use serde::Deserialize;
+use std::collections::HashMap;
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Field<T> {
+use crate::models::base_extensions::FieldExtensionObject;
+
+#[derive(serde::Deserialize)]
+pub struct CreateBaseField {
     pub name: String,
     pub description: Option<String>,
     pub mandatory: bool,
-    pub default_value: Option<T>,
 }
 
-#[derive(Deserialize, Clone)]
-#[serde(tag = "$type")]
-pub enum CreateExtensionFieldVariant {
-    #[serde(alias = "string", rename_all = "camelCase")]
-    STRING(Field<String>),
-
-    #[serde(alias = "boolean", rename_all = "camelCase")]
-    BOOLEAN(Field<bool>),
+#[derive(serde::Deserialize)]
+pub struct CreateStringField {
+    pub max_len: Option<i64>,
+    pub min_len: Option<i64>,
 }
 
-#[derive(Deserialize, Clone)]
-pub struct CreateExtensionField {
+#[derive(serde::Deserialize)]
+#[serde(tag = "$type", rename_all = "lowercase")]
+pub enum CreateCustomFieldEntry {
+    STRING(CreateStringField),
+    INT,
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateCustomField {
+    #[serde(rename = "$object")]
+    pub object: FieldExtensionObject,
+
     #[serde(flatten)]
-    pub variant: CreateExtensionFieldVariant,
+    pub base_felds: CreateBaseField,
+
+    #[serde(flatten)]
+    pub custom: CreateCustomFieldEntry,
 }
 
-#[derive(Deserialize, Clone, Copy)]
-#[serde(rename_all = "camelCase")]
-pub enum ExtensionType {
-    Product,
+impl CreateCustomField {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.base_felds.name.is_empty() {
+            return Err("'name' is mandatory field".to_string());
+        }
+
+        return Ok(());
+    }
 }
 
-#[derive(Deserialize)]
-pub struct CreateExtension {
-    #[serde(rename(deserialize = "$type"))]
-    pub r#type: ExtensionType,
-    pub fields: Vec<CreateExtensionField>,
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[serde(untagged)]
+pub enum ObjectCustomField {
+    STRING(String),
+    INT(i64),
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateMigrationUpdate {
-    pub file_path: String
-}
+pub type ObjectCustomFields = Option<HashMap<String, ObjectCustomField>>;

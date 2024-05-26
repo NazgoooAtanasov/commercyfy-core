@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, sqlx::FromRow)]
 pub struct ProductImage {
@@ -15,5 +15,4 @@ pub struct Product {
     pub product_name: String,
     pub product_description: String,
     pub product_color: Option<String>,
-    // pub product_custom_fields: Option<Vec<String>>
 }

@@ -85,3 +85,24 @@ CREATE TABLE pricebooks_products (
     FOREIGN KEY (product_id) references products(id),
     UNIQUE(pricebook_id, product_id)
 );
+
+CREATE TYPE metadataobjecttype AS ENUM (
+  'PRODUCT'
+);
+CREATE TYPE metadatafieldtype AS ENUM (
+  'STRING',
+  'INT'
+);
+CREATE TABLE _metadata_custom_fields (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+
+  object metadataobjecttype NOT NULL,
+  "type" metadatafieldtype NOT NULL,
+  name VARCHAR NOT NULL UNIQUE,
+  description VARCHAR,
+  mandatory boolean NOT NULL DEFAULT false,
+
+  -- string type
+  max_len bigint,
+  min_len bigint
+);

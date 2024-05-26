@@ -1,12 +1,26 @@
+use std::collections::HashMap;
+
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::{category::Category, portal_user::{JWTClaims, PortalUsersRoles}, product::Product},
+    models::{
+        base_extensions::FieldExtensionObject,
+        category::Category,
+        portal_user::{JWTClaims, PortalUsersRoles},
+        product::Product,
+    },
     schemas::category::CreateCategory,
-    services::{db::DbService, role_validation::RoleService},
+    services::{
+        db::DbService,
+        role_validation::RoleService,
+        unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
+    },
+    utils::custom_fields::create_custom_fields,
     CommercyfyExtrState,
 };
 use axum::{
-    extract::{Path, State}, http::StatusCode, Extension, Json
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
 };
 
 pub async fn get_categories(
@@ -58,16 +72,27 @@ pub async fn create_category(
         }
     }
 
-    let created = state.db_service.create_category(payload).await;
+    let created = state.db_service.create_category(&payload).await;
     if let Err(error) = created {
         return commercyfy_fail!(error.to_string());
     }
 
+    let category = created.unwrap();
+
+    if let Err(err) = create_custom_fields(
+        state,
+        category.id.to_string(),
+        FieldExtensionObject::CATEGORY,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err);
+    }
+
     return commercyfy_success!(
         StatusCode::CREATED,
-        CreatedEntryResponse {
-            id: created.unwrap().id
-        }
+        CreatedEntryResponse { id: category.id }
     );
 }
 
@@ -76,6 +101,7 @@ pub struct CategoryView {
     #[serde(flatten)]
     category: Category,
     products: Vec<Product>,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
 }
 pub async fn get_category(
     Extension(claims): Extension<JWTClaims>,
@@ -94,11 +120,27 @@ pub async fn get_category(
             let mut category_view = CategoryView {
                 category: cat,
                 products: Vec::new(),
+                custom_fields: HashMap::new(),
             };
 
             if let Ok(products) = state.db_service.get_category_products_by_id(&id).await {
                 category_view.products = products;
             }
+
+            if let Ok(custom_fields) = state
+                .unstructureddb
+                .get_custom_fields(
+                    FieldExtensionObject::CATEGORY,
+                    &category_view.category.id.to_string(),
+                )
+                .await
+            {
+                for entry in custom_fields {
+                    category_view
+                        .custom_fields
+                        .insert(entry.field_name, entry.value);
+                }
+            };
 
             return commercyfy_success!(category_view);
         }
@@ -109,11 +151,31 @@ pub async fn get_category(
             let mut category_view = CategoryView {
                 category: cat,
                 products: Vec::new(),
+                custom_fields: HashMap::new(),
             };
 
-            if let Ok(products) = state.db_service.get_category_products_by_id(&category_view.category.id.to_string()).await {
+            if let Ok(products) = state
+                .db_service
+                .get_category_products_by_id(&category_view.category.id.to_string())
+                .await
+            {
                 category_view.products = products;
             }
+
+            if let Ok(custom_fields) = state
+                .unstructureddb
+                .get_custom_fields(
+                    FieldExtensionObject::CATEGORY,
+                    &category_view.category.id.to_string(),
+                )
+                .await
+            {
+                for entry in custom_fields {
+                    category_view
+                        .custom_fields
+                        .insert(entry.field_name, entry.value);
+                }
+            };
 
             return commercyfy_success!(category_view);
         }

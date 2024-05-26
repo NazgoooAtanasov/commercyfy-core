@@ -7,7 +7,9 @@ edition = "2021"
 argon2 = "0.5.3"
 axum = "0.7.5"
 dotenv = "0.15.0"
+futures = "0.3.30"
 jsonwebtoken = "9.3.0"
+mongodb = { version = "2.8.2", features = ["tokio-runtime"] }
 rust_decimal = "1.35.0"
 serde = { version = "1.0.202", features = ["derive"] }
 sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "uuid", "rust_decimal"] }
@@ -15,3 +17,7 @@ tokio = { version = "1.37.0", features = ["full"] }
 
 [dependencies.uuid]
 features = ["serde"]
+
+[lints.clippy]
+implicit_return = "deny"
+needless_return = "allow"
