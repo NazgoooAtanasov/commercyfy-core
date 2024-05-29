@@ -1,157 +1,255 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
-use std::sync::Arc;
-use tokio_postgres::Client;
+use std::collections::HashMap;
 
+use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    routes::portal_user::JWTClaims, 
+    models::{
+        base_extensions::FieldExtensionObject,
+        portal_user::{JWTClaims, PortalUsersRoles},
+        pricebook::{Pricebook, PricebookRecord},
+    },
     schemas::pricebook::{CreatePricebook, CreatePricebookRecord},
-    models::{pricebook::Pricebook, error::ErrorResponse}
+    services::{
+        db::DbService,
+        role_validation::RoleService,
+        unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
+    },
+    utils::custom_fields::create_custom_fields,
+    CommercyfyExtrState,
+};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
 };
 
-#[get("/list")]
 pub async fn get_pricebooks(
-    app_data: web::Data<Arc<Client>>,
-    request_data: Option<web::ReqData<JWTClaims>>,
-) -> impl Responder {
-    let claims = request_data.unwrap();
-
-    if !claims
-        .roles
-        .contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR)
-        && !claims
-            .roles
-            .contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN)
-    {
-        return HttpResponse::Unauthorized().finish();
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+) -> CommercyfyResponse<Vec<Pricebook>> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
     }
 
-    let pricebooks_lookup_response = app_data.query("SELECT * FROM pricebooks", &[]).await;
-    if let Err(error) = pricebooks_lookup_response {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: error.to_string(),
-        });
+    let pricebooks = state.db_service.get_pricebooks().await;
+    if let Err(error) = pricebooks {
+        return commercyfy_fail!(error.to_string());
     }
 
-    let pricebooks: Vec<Pricebook> = pricebooks_lookup_response
-        .unwrap()
-        .iter()
-        .map(|x| Pricebook::from(x))
-        .collect();
-
-    return HttpResponse::Ok().json(pricebooks);
+    return commercyfy_success!(pricebooks.unwrap());
 }
 
-#[post("/create")]
-pub async fn create_pricebook(
-    app_data: web::Data<Arc<Client>>,
-    data: web::Json<CreatePricebook>,
-    request_data: Option<web::ReqData<JWTClaims>>,
-) -> impl Responder {
-    let claims = request_data.unwrap();
-
-    if !claims
-        .roles
-        .contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR)
-        && !claims
-            .roles
-            .contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN)
-    {
-        return HttpResponse::Unauthorized().finish();
-    }
-
-    if data.pricebook_name.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: String::from("pricebook_name is required field."),
-        });
-    }
-
-    if data.pricebook_reference.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: String::from("pricebook_reference is required field."),
-        });
-    }
-
-    if data.pricebook_currency_code.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: String::from("pricebook_currency_code is required field."),
-        });
-    }
-
-    let pricebook_create_result = app_data.query(
-        "INSERT INTO pricebooks (pricebook_name, pricebook_reference, pricebook_currency_code) VALUES ($1, $2, $3)", 
-        &[&data.pricebook_name, &data.pricebook_reference, &data.pricebook_currency_code]
-    ).await;
-
-    if let Err(error) = pricebook_create_result {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: format!(
-                "There was an error creating the pricebook {}.",
-                error.to_string()
-            ),
-        });
-    }
-
-    return HttpResponse::Created().finish();
+#[derive(serde::Serialize)]
+pub struct PricebookView {
+    #[serde(flatten)]
+    pricebook: Pricebook,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
 }
-
-#[post("/{picebook_id}/record")]
-pub async fn create_record(
-    app_data: web::Data<Arc<Client>>,
-    data: web::Json<CreatePricebookRecord>,
-    path: web::Path<uuid::Uuid>,
-    request_data: Option<web::ReqData<JWTClaims>>,
-) -> impl Responder {
-    let claims = request_data.unwrap();
-
-    if !claims
-        .roles
-        .contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR)
-        && !claims
-            .roles
-            .contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN)
-    {
-        return HttpResponse::Unauthorized().finish();
+pub async fn get_pricebook(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Path(id): Path<String>,
+) -> CommercyfyResponse<PricebookView> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
     }
 
-    let existing_product_lookup = app_data
-        .query_one("SELECT id FROM products WHERE id = $1", &[&data.product_id])
-        .await;
-    if let Err(error) = existing_product_lookup {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: format!(
-                "No product was found or there was another error {}",
-                error.to_string()
-            ),
-        });
+    let pricebook = state.db_service.get_pricebook_by_id(&id).await;
+    if let Err(err) = pricebook {
+        return commercyfy_fail!(err.to_string());
+    }
+    if let Some(pricebook) = pricebook.unwrap() {
+        let mut pricebook_view = PricebookView {
+            pricebook,
+            custom_fields: HashMap::new(),
+        };
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::PRICEBOOK,
+                &pricebook_view.pricebook.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                pricebook_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
+        }
+
+        return commercyfy_success!(pricebook_view);
     }
 
-    let pricebook_id = path.into_inner();
-    let existing_pricebook_lookup = app_data
-        .query_one("SELECT id FROM pricebooks WHERE id = $1", &[&pricebook_id])
-        .await;
-    if let Err(error) = existing_pricebook_lookup {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: format!(
-                "No pricebook was found or there was another error {}",
-                error.to_string()
-            ),
-        });
+    let pricebook = state.db_service.get_pricebook_by_reference(&id).await;
+    if let Err(err) = pricebook {
+        return commercyfy_fail!(err.to_string());
+    }
+    if let Some(pricebook) = pricebook.unwrap() {
+        let mut pricebook_view = PricebookView {
+            pricebook,
+            custom_fields: HashMap::new(),
+        };
+
+        if let Ok(custom_fields) = state
+            .unstructureddb
+            .get_custom_fields(
+                FieldExtensionObject::PRICEBOOK,
+                &pricebook_view.pricebook.id.to_string(),
+            )
+            .await
+        {
+            for field in custom_fields {
+                pricebook_view
+                    .custom_fields
+                    .insert(field.field_name, field.value);
+            }
+        }
+
+        return commercyfy_success!(pricebook_view);
     }
 
-    let product_pricebook_record_create = app_data
-        .query(
-            "INSERT INTO pricebooks_products (price, product_id, pricebook_id) VALUES ($1, $2, $3)",
-            &[&data.price, &data.product_id, &pricebook_id],
+    return commercyfy_fail!(
+        StatusCode::NOT_FOUND,
+        format!(
+            "Pricebook with the provided, {}, id/reference was not found",
+            id
         )
-        .await;
-    if let Err(error) = product_pricebook_record_create {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: format!(
-                "There was an error creating pricebook entry for the product: {}",
-                error.to_string()
-            ),
-        });
+    );
+}
+
+pub async fn create_pricebook(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<CreatePricebook>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
     }
 
-    return HttpResponse::Created().finish();
+    if let Err(err) = payload.validate() {
+        return commercyfy_fail!(err);
+    }
+
+    let pricebook_creation = match state.db_service.create_pricebook(&payload).await {
+        Ok(pricebook) => pricebook,
+        Err(err) => return commercyfy_fail!(err.to_string()),
+    };
+
+    if let Err(err) = create_custom_fields(
+        state,
+        pricebook_creation.id.to_string(),
+        FieldExtensionObject::PRICEBOOK,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err);
+    }
+
+    return commercyfy_success!(
+        StatusCode::CREATED,
+        CreatedEntryResponse {
+            id: pricebook_creation.id
+        }
+    );
+}
+
+pub async fn create_pricebook_record(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<CreatePricebookRecord>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
+    if let Err(err) = payload.validate() {
+        return commercyfy_fail!(err);
+    }
+
+    let product = state.db_service.get_product(&payload.product_id).await;
+    if let Err(err) = product {
+        return commercyfy_fail!(err.to_string());
+    }
+    if let None = product.unwrap() {
+        return commercyfy_fail!(format!(
+            "Product with id '{}' was not found.",
+            payload.product_id
+        ));
+    }
+
+    let pricebook = state
+        .db_service
+        .get_pricebook_by_id(&payload.pricebook_id)
+        .await;
+    if let Err(err) = pricebook {
+        return commercyfy_fail!(err.to_string());
+    }
+    if let None = pricebook.unwrap() {
+        return commercyfy_fail!(format!(
+            "Pricebook with id '{}' was not found.",
+            payload.pricebook_id
+        ));
+    }
+
+    let pricebook_record = state
+        .db_service
+        .create_product_pricebook_record(payload)
+        .await;
+    if let Err(err) = pricebook_record {
+        return commercyfy_fail!(err.to_string());
+    }
+
+    return commercyfy_success!(
+        StatusCode::CREATED,
+        CreatedEntryResponse {
+            id: pricebook_record.unwrap().id
+        }
+    );
+}
+
+pub async fn get_pricebook_record(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Path(path): Path<(String, String)>,
+) -> CommercyfyResponse<PricebookRecord> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
+    let (pricebook_id, product_id) = path;
+
+    let pricebook_record = state
+        .db_service
+        .get_product_pricebook_record(&product_id, &pricebook_id)
+        .await;
+
+    if let Err(err) = pricebook_record {
+        return commercyfy_fail!(err.to_string());
+    }
+
+    if let Some(pricebook_record) = pricebook_record.unwrap() {
+        return commercyfy_success!(pricebook_record);
+    }
+
+    return commercyfy_fail!(
+        StatusCode::NOT_FOUND,
+        format!("There is no pricebook record with the provided ids.")
+    );
 }

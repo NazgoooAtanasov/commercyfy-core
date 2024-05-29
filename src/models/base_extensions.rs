@@ -1,30 +1,42 @@
-use serde::Serialize;
-use tokio_postgres::Row;
-
-#[derive(Serialize)]
-pub struct MigrationGenerated {
-    pub file_path: String
+#[derive(serde::Serialize, serde::Deserialize, sqlx::Type, Clone)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "metadataobjecttype")]
+pub enum FieldExtensionObject {
+    PRODUCT,
+    CATEGORY,
+    INVENTORY,
+    PRICEBOOK,
 }
 
-pub struct __MetaProductCustomField {
+#[derive(serde::Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "metadatafieldtype")]
+pub enum FieldExtensionType {
+    STRING,
+    INT,
+}
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+pub struct FieldExtension {
     pub id: uuid::Uuid,
+
+    #[serde(rename = "$object")]
+    pub object: FieldExtensionObject,
+
+    #[serde(rename = "$type")]
+    pub r#type: FieldExtensionType,
+
     pub name: String,
+
+    pub mandatory: bool,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub value_type: String,
-    pub default_value: Option<String>,
-    pub mandatory: bool
-}
 
+    // could only available if the extension field is of type STRING(FieldExtensionType::STRING)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_len: Option<i64>,
 
-impl From<Row> for __MetaProductCustomField {
-    fn from(value: Row) -> Self {
-        return Self {
-            id: value.get("id"),
-            name: value.get("name"),
-            description: value.try_get("description").map_or(None, |x| Some(x)),
-            value_type: value.get("value_type"),
-            default_value: value.try_get("default_value").map_or(None, |x| Some(x)),
-            mandatory: value.get("mandatory"),
-        };
-    }
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_len: Option<i64>,
 }

@@ -1,304 +1,165 @@
-use crate::{
-    models::{
-        error::ErrorResponse,
-        inventory::ProductInventoryRecord,
-        pricebook::PricebookRecord,
-        product::{Product, ProductImage},
-        base_extensions::__MetaProductCustomField
-    },
-    routes::portal_user::JWTClaims,
-    schemas::product::{CreateProduct, CreateProductImage},
+use std::collections::HashMap;
+
+use super::{CommercyfyResponse, CreatedEntryResponse};
+use crate::models::base_extensions::FieldExtensionObject;
+use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
+use crate::models::product::ProductImage;
+use crate::schemas::product::{CreateProduct, CreateProductImage};
+use crate::services::unstructureddb::entry::UnstructuredEntryType;
+use crate::services::{
+    db::DbService, role_validation::RoleService, unstructureddb::UnstructuredDb,
 };
-use actix_web::{get, http::StatusCode, post, web, HttpResponse, Responder};
-use postgres_types::ToSql;
-use std::sync::Arc;
-use tokio_postgres::Client;
+use crate::utils::custom_fields::create_custom_fields;
+use crate::{models::product::Product, CommercyfyExtrState};
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::{Extension, Json};
 
-#[get("/{product_id}")]
+#[derive(serde::Serialize)]
+pub struct ProductView {
+    #[serde(flatten)]
+    product: Product,
+    images: Vec<ProductImage>,
+    custom_fields: HashMap<String, UnstructuredEntryType>,
+}
+
 pub async fn get_product(
-    path: web::Path<String>,
-    app_data: web::Data<Arc<Client>>,
-) -> impl Responder {
-    let product_id = path.into_inner();
-
-    let product_lookup_result = app_data
-        .query_one("SELECT * FROM products WHERE id::text = $1", &[&product_id])
-        .await;
-
-    if let Ok(result) = product_lookup_result {
-        let mut product = Product::from(&result);
-
-        let image_lookup_result = app_data.query("SELECT id as image_id, src, srcset, alt, product_id FROM images WHERE product_id::text = $1", &[&product_id]).await;
-
-        if let Ok(result) = image_lookup_result {
-            let images: Vec<ProductImage> = result.iter().map(|x| ProductImage::from(x)).collect();
-            product.product_images = Some(images);
-        }
-
-        return HttpResponse::build(StatusCode::OK).json(product);
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Path(id): Path<String>,
+) -> CommercyfyResponse<ProductView> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
     }
 
-    if let Err(err) = product_lookup_result {
-        return HttpResponse::build(StatusCode::BAD_REQUEST)
-            .append_header(("content-type", "application/json"))
-            .body(format!(
-                "{{ \"message\": \"{}\", \"product_id\": \"{}\" }}",
-                err.to_string(),
-                product_id
-            ));
+    let product_check = state.db_service.get_product(&id).await;
+
+    if let Err(error) = product_check {
+        return commercyfy_fail!(error.to_string());
     }
 
-    return HttpResponse::build(StatusCode::BAD_REQUEST).finish();
-}
-
-#[get("/{product_id}/inventory/{inventory_id}")]
-pub async fn get_product_inventory(
-    path: web::Path<(String, String)>,
-    app_data: web::Data<Arc<Client>>,
-) -> impl Responder {
-    let (product_id, inventory_id) = path.into_inner();
-
-    let product_inventory_lookup_result = app_data.query_one("\
-        SELECT ip.allocation, ip.product_id FROM inventories_products ip WHERE ip.product_id::text = $1 AND ip.inventory_id::text = $2;
-        ", &[&product_id, &inventory_id]).await;
-
-    if let Err(_error) = product_inventory_lookup_result {
-        return HttpResponse::build(StatusCode::BAD_REQUEST).json(ErrorResponse {
-            error_message: "There was an error trying to retrieve the requested resource."
-                .to_string(),
-        });
+    let product = product_check.unwrap();
+    if let None = product {
+        return commercyfy_fail!(
+            StatusCode::NOT_FOUND,
+            format!("Product with 'id' '{id}' is not found")
+        );
     }
 
-    let product_inventory_record =
-        ProductInventoryRecord::from(&product_inventory_lookup_result.unwrap());
+    let mut product_view = ProductView {
+        product: product.unwrap(),
+        images: Vec::new(),
+        custom_fields: HashMap::new(),
+    };
 
-    return HttpResponse::Ok().json(product_inventory_record);
-}
-
-#[post("/create")]
-pub async fn create_product(
-    app_data: web::Data<Arc<Client>>,
-    data: web::Json<CreateProduct>,
-    request_data: Option<web::ReqData<JWTClaims>>,
-) -> impl Responder {
-    let claims = request_data.unwrap();
-
-    if !claims
-        .roles
-        .contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR)
-        && !claims
-            .roles
-            .contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN)
-    {
-        return HttpResponse::Unauthorized().finish();
+    let images_check = state.db_service.get_product_images(&id).await;
+    if let Ok(images) = images_check {
+        product_view.images = images;
     }
 
-    if data.product_name.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: "product_name is required field.".to_string(),
-        });
-    }
-
-    if data.product_description.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: "product_description is required field.".to_string(),
-        });
-    }
-
-    let product_insert_result = app_data
-        .query_one(
-            " \
-        INSERT INTO products (product_name, product_description, product_color) \
-        VALUES ($1, $2, $3) \
-        RETURNING id, product_name, product_description, product_color
-    ",
-            &[
-                &data.product_name,
-                &data.product_description,
-                &data.product_color,
-            ],
+    if let Ok(custom_fields) = state
+        .unstructureddb
+        .get_custom_fields(
+            FieldExtensionObject::PRODUCT,
+            &product_view.product.id.to_string(),
         )
-        .await;
-
-    if let Err(error) = &product_insert_result {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: error.to_string(),
-        });
-    }
-
-    let product = Product::from(&product_insert_result.unwrap());
-
-    if let Some(images) = &data.product_images {
-        if !images.is_empty() {
-            let mut query: String =
-                String::from("INSERT INTO images (product_id, src, srcset, alt) VALUES");
-            let mut parameters = Vec::new();
-            parameters.push(&product.id as &(dyn ToSql + Sync));
-
-            let mut idx = 1;
-            for (image_idx, image) in images.iter().enumerate() {
-                if image_idx == 0 {
-                    query.insert_str(
-                        query.len(),
-                        format!(" ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str(),
-                    );
-                } else {
-                    query.insert_str(
-                        query.len(),
-                        format!(", ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str(),
-                    );
-                }
-                idx += 3;
-
-                parameters.push(&image.src as &(dyn ToSql + Sync));
-                parameters.push(&image.srcset as &(dyn ToSql + Sync));
-                parameters.push(&image.alt as &(dyn ToSql + Sync));
-            }
-
-            let insert_images_result = app_data.query(&query, parameters.as_slice()).await;
-
-            if let Err(error) = insert_images_result {
-                return HttpResponse::BadRequest().json(ErrorResponse {
-                    error_message: error.to_string(),
-                });
-            }
-        }
-    }
-
-    if let Some(category_ids) = &data.category_assignments {
-        if !category_ids.is_empty() {
-            let mut query: String =
-                String::from("INSERT INTO categories_products (product_id, category_id) values");
-            let mut parameters = Vec::new();
-            parameters.push(&product.id as &(dyn ToSql + Sync));
-
-            for (idx, category_id) in category_ids.iter().enumerate() {
-                if idx + 1 == 1 {
-                    query.insert_str(query.len(), format!("($1, ${})", idx + 2).as_str());
-                } else {
-                    query.insert_str(query.len(), format!(", ($1, ${})", idx + 2).as_str());
-                }
-
-                let category_to_sql = category_id;
-                parameters.push(category_to_sql as &(dyn ToSql + Sync));
-            }
-
-            let assign_categories_result = app_data.query(&query, parameters.as_slice()).await;
-
-            if let Err(error) = assign_categories_result {
-                return HttpResponse::BadRequest().json(ErrorResponse {
-                    error_message: error.to_string(),
-                });
-            }
-        }
-    }
-
-    if let Some(custom_fields) = &data.custom_fields {
-        for (key, value) in custom_fields {
-            let metadata_lookup = app_data.query_one("SELECT * FROM __meta_product_custom_fields WHERE name = $1", &[key]).await;
-            if let Err(error) = metadata_lookup {
-                return HttpResponse::BadRequest().json(ErrorResponse {
-                    error_message: error.to_string(),
-                });
-            }
-            let field_metadata:  __MetaProductCustomField = metadata_lookup.unwrap().into();
-        }
-    }
-
-    return HttpResponse::Created().finish();
-}
-
-#[post("/{product_id}/images/create")]
-pub async fn create_images(
-    app_data: web::Data<Arc<Client>>,
-    data: web::Json<Vec<CreateProductImage>>,
-    request_data: Option<web::ReqData<JWTClaims>>,
-    path: web::Path<uuid::Uuid>,
-) -> impl Responder {
-    let claims = request_data.unwrap();
-
-    if !claims
-        .roles
-        .contains(&crate::routes::portal_user::PortalUsersRoles::EDITOR)
-        && !claims
-            .roles
-            .contains(&crate::routes::portal_user::PortalUsersRoles::ADMIN)
+        .await
     {
-        return HttpResponse::Unauthorized().finish();
-    }
-
-    let product_id = path.into_inner();
-
-    let product_lookup_result = app_data
-        .query_one("SELECT id FROM products WHERE id = $1", &[&product_id])
-        .await;
-
-    if let Err(error) = product_lookup_result {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: error.to_string(),
-        });
-    }
-
-    if data.is_empty() {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: "No images were provided.".to_string(),
-        });
-    }
-
-    let mut query: String =
-        String::from("INSERT INTO images (product_id, src, srcset, alt) VALUES");
-    let mut parameters = Vec::new();
-    parameters.push(&product_id as &(dyn ToSql + Sync));
-
-    let mut idx = 1;
-    for (image_idx, image) in data.iter().enumerate() {
-        if image_idx == 0 {
-            query.insert_str(
-                query.len(),
-                format!(" ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str(),
-            );
-        } else {
-            query.insert_str(
-                query.len(),
-                format!(", ($1, ${}, ${}, ${})", idx + 1, idx + 2, idx + 3).as_str(),
-            );
+        for field in custom_fields {
+            product_view
+                .custom_fields
+                .insert(field.field_name, field.value);
         }
-        idx += 3;
-
-        parameters.push(&image.src as &(dyn ToSql + Sync));
-        parameters.push(&image.srcset as &(dyn ToSql + Sync));
-        parameters.push(&image.alt as &(dyn ToSql + Sync));
     }
 
-    let insert_images_result = app_data.query(&query, parameters.as_slice()).await;
-
-    if let Err(error) = insert_images_result {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: error.to_string(),
-        });
-    }
-
-    return HttpResponse::Created().finish();
+    return commercyfy_success!(product_view);
 }
 
-#[get("/{product_id}/price/{pricebook_id}")]
-pub async fn get_product_price(
-    path: web::Path<(uuid::Uuid, uuid::Uuid)>,
-    app_data: web::Data<Arc<Client>>,
-) -> impl Responder {
-    let (product_id, pricebook_id) = path.into_inner();
-
-    let product_price_lookup = app_data.query_one(
-        "SELECT product_id, price FROM pricebooks_products WHERE product_id = $1 AND pricebook_id = $2",
-        &[&product_id, &pricebook_id]).await;
-
-    if let Err(error) = product_price_lookup {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: error.to_string(),
-        });
+pub async fn create_product(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<CreateProduct>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
     }
 
-    let record = PricebookRecord::from(&product_price_lookup.unwrap());
+    if let Err(error) = payload.validate() {
+        return commercyfy_fail!(error.to_string());
+    }
 
-    return HttpResponse::Ok().json(record);
+    let category_assignments = payload.category_assignments.clone();
+    let product_create = state.db_service.create_product(&payload).await;
+    if let Err(err) = product_create {
+        return commercyfy_fail!(err.to_string());
+    }
+
+    let product = product_create.unwrap();
+    if let Some(categories) = category_assignments {
+        if let Err(error) = state
+            .db_service
+            .create_product_category_assignment(product.id, categories)
+            .await
+        {
+            return commercyfy_fail!(format!("Assignment failed because: {}, but the cretion of the product should be successfull", error.to_string()));
+        }
+    }
+
+    if let Err(err) = create_custom_fields(
+        state,
+        product.id.to_string(),
+        FieldExtensionObject::PRODUCT,
+        &payload.custom_fields,
+    )
+    .await
+    {
+        return commercyfy_fail!(err);
+    }
+
+    return commercyfy_success!(StatusCode::CREATED, CreatedEntryResponse { id: product.id });
+}
+
+pub async fn create_product_image(
+    Extension(claims): Extension<JWTClaims>,
+    Path(id): Path<String>,
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<CreateProductImage>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
+    if let Err(error) = payload.validate() {
+        return commercyfy_fail!(error);
+    }
+
+    let product_check = state.db_service.get_product(&id).await;
+    if let Err(error) = product_check {
+        return commercyfy_fail!(error.to_string());
+    }
+
+    if let None = product_check.unwrap() {
+        return commercyfy_fail!(
+            StatusCode::NOT_FOUND,
+            format!("Product with 'id' '{id}' is not found")
+        );
+    }
+
+    let create_check = state.db_service.create_product_image(&id, payload).await;
+    if let Err(error) = create_check {
+        return commercyfy_fail!(error.to_string());
+    }
+
+    return commercyfy_success!(CreatedEntryResponse {
+        id: create_check.unwrap().id
+    });
 }

@@ -1,68 +1,71 @@
-use crate::migration_generator::MigrationGenerator;
+use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::{
-    models::{base_extensions::MigrationGenerated, error::ErrorResponse},
-    schemas::base_extensions::{CreateExtension, CreateMigrationUpdate},
+    models::base_extensions::{FieldExtension, FieldExtensionObject},
+    schemas::base_extensions::CreateCustomField,
+    services::db::DbService,
+    CommercyfyExtrState,
 };
-use actix_web::{post, web, HttpResponse, Responder};
-use std::{io::Read, sync::Arc};
-use tokio_postgres::Client;
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 
-#[post("/process")]
-pub async fn process(data: web::Json<CreateExtension>) -> impl Responder {
-    let mut generator = MigrationGenerator::new();
-    generator.set_what_to_extend(data.r#type);
-    for field in &data.fields {
-        generator.set_field(field.clone());
+pub async fn create_extension(
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<CreateCustomField>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = payload.validate() {
+        return commercyfy_fail!(err);
     }
 
-    let migration = generator.generate();
+    let existing_custom_field = match state
+        .db_service
+        .get_custom_field(payload.object.clone(), &payload.base_felds.name)
+        .await
+    {
+        Ok(field) => field,
+        Err(err) => return commercyfy_fail!(err.to_string()),
+    };
 
-    match migration {
-        Ok(migration_file_path) => {
-            return HttpResponse::Ok().json(MigrationGenerated {
-                file_path: migration_file_path,
-            });
-        }
-
-        Err(error) => {
-            return HttpResponse::BadRequest().json(ErrorResponse {
-                error_message: error,
-            });
-        }
+    if let Some(_) = existing_custom_field {
+        return commercyfy_fail!(
+            "Field with that name already exists on the provided object type".to_string()
+        );
     }
+
+    let custom_field = match state.db_service.create_custom_field(payload).await {
+        Ok(field) => field,
+        Err(err) => return commercyfy_fail!(err.to_string()),
+    };
+
+    return commercyfy_success!(
+        StatusCode::CREATED,
+        CreatedEntryResponse {
+            id: custom_field.id
+        }
+    );
 }
 
-#[post("/migrate")]
-pub async fn migrate(
-    data: web::Json<CreateMigrationUpdate>,
-    app_data: web::Data<Arc<Client>>,
-) -> impl Responder {
-    let file_path = data.file_path.clone();
-
-    let migration_file = std::fs::File::open(file_path);
-    if let Err(e) = migration_file {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: e.to_string(),
-        });
-    }
-
-    let mut migration = String::new();
-    if let Err(e) = migration_file.unwrap().read_to_string(&mut migration) {
-        return HttpResponse::BadRequest().json(ErrorResponse {
-            error_message: e.to_string(),
-        });
-    }
-
-    // @FIXME: this here is quite unfortunate. Would need to figure out how to create a
-    // transaction.
-    let migration_lines: Vec<&str> = migration.split("\n").collect();
-    for line in migration_lines {
-        if let Err(e) = app_data.query(line, &[]).await {
-            return HttpResponse::BadRequest().json(ErrorResponse {
-                error_message: e.to_string()
-            });
+pub async fn get_extensions(
+    State(state): CommercyfyExtrState,
+    Path(object_type): Path<String>,
+) -> CommercyfyResponse<Vec<FieldExtension>> {
+    let object = match object_type.to_lowercase().as_str() {
+        "product" => FieldExtensionObject::PRODUCT,
+        _ => {
+            return commercyfy_fail!(
+                StatusCode::NOT_FOUND,
+                format!("There is no object type '{}'", object_type)
+            )
         }
+    };
+
+    let extensions = state.db_service.get_custom_fields(object).await;
+
+    if let Err(err) = extensions {
+        return commercyfy_fail!(err.to_string());
     }
 
-    return HttpResponse::Ok().finish();
+    return commercyfy_success!(extensions.unwrap());
 }
