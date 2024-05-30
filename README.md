@@ -30,8 +30,5 @@ An extensible ecommerce platform written in rust. Build for stability, first-cla
     - [x] Manager user authentication
 
 #### Phase 2
-- [ ] Search
-    - [ ] tf-idf style search
-    - [ ] search engine powered
 - [x] Custom extensible objects
     - [x] Make all objects extensible
