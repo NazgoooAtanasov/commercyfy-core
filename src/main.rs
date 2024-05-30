@@ -1,115 +1,133 @@
-use std::sync::Arc;
-
-use actix_web::{error, HttpResponse};
-use actix_web::{middleware::Logger, web, App, HttpServer};
-use env_logger::Env;
-use models::error::ErrorResponse;
-use routes::base_extensions::{process, migrate};
-use routes::category::{assing_products, create_category, get_category};
-use routes::inventory::{create_inventory, get_inventory};
-use routes::portal_user::signin;
-use routes::pricebook::{create_pricebook, get_pricebooks};
-use routes::product::{create_images, create_product, get_product_inventory, get_product_price};
-use tokio_postgres::{Error, NoTls};
-
 mod middlewares;
 mod models;
 mod routes;
 mod schemas;
-mod migration_generator;
-use crate::middlewares::authentication::Authentication;
-use crate::routes::category::get_categories;
-use crate::routes::portal_user::create_user;
-use crate::routes::product::get_product;
+mod services;
+mod utils;
 
-#[actix_web::main]
-async fn main() -> Result<(), Error> {
-    dotenv::dotenv().ok();
+use axum::{
+    extract::State,
+    routing::{get, post},
+    serve, Router,
+};
+use routes::{
+    base_extensions::{create_extension, get_extensions},
+    category::{create_category, get_categories, get_category},
+    inventory::{
+        create_inventory, create_inventory_record, get_inventories, get_inventory,
+        get_inventory_record,
+    },
+    portal::{create_portal_user, get_portal_user, signin_portal_user},
+    pricebook::{
+        create_pricebook, create_pricebook_record, get_pricebook, get_pricebook_record,
+        get_pricebooks,
+    },
+    product::{create_product, create_product_image, get_product},
+};
+use services::{db::PgDbService, role_validation::RoleValidation, unstructureddb::MongoDb};
+use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
 
-    let (client, conn) = tokio_postgres::connect(
-        std::env::var("DATABASE_URL").unwrap().as_str(),
-        NoTls
-    ).await?;
+pub struct CommercyfyState {
+    pub db_service: PgDbService,
+    pub role_service: RoleValidation,
+    pub unstructureddb: MongoDb,
+}
 
-    let client = Arc::new(client);
+type CommercyfyExtrState = State<Arc<CommercyfyState>>;
 
-    tokio::spawn(async move {
-        if let Err(err) = conn.await {
-            eprintln!("Connection error {}", err);
-        } else {
-            println!("Connected successfully");
-        }
+#[tokio::main]
+pub async fn main() {
+    dotenv::dotenv().expect("Could not load env variables!");
+    std::env::var("JWT_TOKEN_SECRET").expect("JWT_TOKEN_SECRET was not found in .env!");
+
+    let db_connstr = std::env::var("DATABASE_URL").expect("DATABASE_URL was not found in .env!");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&db_connstr)
+        .await
+        .expect("Could not connect to the database!");
+
+    let mongo_client = mongodb::Client::with_uri_str(
+        std::env::var("MONGODB_URL").expect("MONGODB_URL was not found in .env!"),
+    )
+    .await
+    .expect("Could not connect to mongodb!");
+    let mongodb = mongo_client.database("commercyfy-core");
+
+    let db_service = PgDbService::new(pool);
+    let role_service = RoleValidation::default();
+    let unstructureddb = MongoDb::new(mongodb);
+
+    unstructureddb
+        .validate_collections()
+        .await
+        .expect("There was an error with creating the needed collections for the usntructureddb.");
+
+    let commercyfy_state = Arc::new(CommercyfyState {
+        db_service,
+        role_service,
+        unstructureddb,
     });
 
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
-    HttpServer::new(move || {
-        let client = Arc::clone(&client);
-        App::new()
-            .app_data(web::Data::new(client))
-            .app_data(web::JsonConfig::default().error_handler(|err, _req| {
-                return error::InternalError::from_response(
-                    "",
-                    HttpResponse::BadRequest()
-                        .json(ErrorResponse {
-                            error_message: err.to_string(),
-                        })
-                        .into(),
-                )
-                .into();
-            }))
-            .service(
-                web::scope("/product")
-                    .wrap(Authentication)
-                    .service(get_product)
-                    .service(get_product_inventory)
-                    .service(create_product)
-                    .service(create_images)
-                    .service(get_product_price),
-            )
-            .service(
-                web::scope("/categories")
-                    .wrap(Authentication)
-                    .service(get_categories)
-                    .service(create_category)
-                    .service(assing_products)
-                    .service(get_category),
-            )
-            .service(
-                web::scope("/portal")
-                    .wrap(Authentication)
-                    .service(create_user),
-            )
-            .service(
-                web::scope("/inventory")
-                    .wrap(Authentication)
-                    .service(get_inventory)
-                    .service(create_inventory)
-                    .service(routes::inventory::create_record),
-            )
-            .service(web::scope("/portal-user").service(signin))
-            .service(
-                web::scope("/pricebooks")
-                    .wrap(Authentication)
-                    .service(get_pricebooks)
-                    .service(create_pricebook)
-                    .service(routes::pricebook::create_record),
-            )
-            .service(
-                web::scope("/extensions")
-                    // .wrap(Authentication)
-                    .service(process)
-                    .service(migrate),
-            )
-            .wrap(Logger::default())
-    })
-    .bind(("0.0.0.0", std::env::var("PORT").unwrap().parse().unwrap()))
-    .unwrap_or_else(|_| {
-        eprintln!("[ERROR] Failed binding to socket");
-        std::process::exit(1);
-    })
-    .run()
-    .await
-    .unwrap();
+    let categories = Router::new()
+        .route("/categories", get(get_categories))
+        .route("/categories", post(create_category))
+        .route("/categories/:id", get(get_category));
 
-    return Ok(());
+    let product = Router::new()
+        .route("/product/:id", get(get_product))
+        .route("/product", post(create_product))
+        .route("/product/:id/images", post(create_product_image));
+
+    let inventory = Router::new()
+        .route("/inventories", get(get_inventories))
+        .route("/inventory/:id", get(get_inventory))
+        .route("/inventory", post(create_inventory))
+        .route("/inventory/record", post(create_inventory_record))
+        .route(
+            "/inventory/:inventory/record/:product",
+            get(get_inventory_record),
+        );
+
+    let pricebooks = Router::new()
+        .route("/pricebooks", get(get_pricebooks))
+        .route("/pricebook/:id", get(get_pricebook))
+        .route("/pricebook", post(create_pricebook))
+        .route("/pricebook/record", post(create_pricebook_record))
+        .route(
+            "/pricebook/:pricebook/record/:product",
+            get(get_pricebook_record),
+        );
+
+    let portal = Router::new()
+        .route("/portal/user/:id", get(get_portal_user))
+        .route("/portal/user", post(create_portal_user));
+
+    let auth_routes = Router::new()
+        .merge(categories)
+        .merge(product)
+        .merge(inventory)
+        .merge(pricebooks)
+        .merge(portal)
+        .route_layer(axum::middleware::from_fn(middlewares::authentication::auth));
+
+    let signin = Router::new().route("/portal/signin", post(signin_portal_user));
+
+    let extensions = Router::new()
+        .route("/extensions/:object", get(get_extensions))
+        .route("/extensions", post(create_extension));
+
+    let app = Router::new()
+        .merge(auth_routes)
+        .merge(signin)
+        .merge(extensions)
+        .with_state(commercyfy_state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+        .await
+        .expect("Could not bind the TCP socket!");
+    serve(listener, app)
+        .await
+        .expect("Could not serve the server!");
 }

@@ -1,18 +1,23 @@
-version: '3'
-
 services:
-    database:
-        build:
-          network: host
+  database:
+    image: 'postgres:latest'
 
-        image: 'postgres:latest'
+    environment: 
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
-        environment: 
-          POSTGRES_USER: ${POSTGRES_USER}
-          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
 
-        ports:
-            - ${POSTGRES_PORT}:${POSTGRES_PORT}
+    volumes:
+      - ./db-data/:/var/lib/postgres/data/
 
-        volumes:
-            - ./db-data/:/var/lib/postgres/data/
+  mongodb:
+    image: 'mongo:latest'
+    ports:
+      - 27017:27017
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_DATABASE: commercyfy-core

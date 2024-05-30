@@ -7,28 +7,6 @@ CREATE TABLE products (
     product_color VARCHAR
 );
 
-CREATE TABLE product_custom_fields (
-    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
-
-    product_id uuid NOT NULL,
-    FOREIGN KEY (product_id) REFERENCES products(id),
-
-    __meta_custom_field_id uuid NOT NULL,
-    FOREIGN KEY (__meta_custom_field_id) REFERENCES __meta_product_custom_fields(id),
-
-    name VARCHAR NOT NULL UNIQUE,
-    value VARCHAR
-);
-
-CREATE TABLE __meta_product_custom_fields (
-    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
-    name VARCHAR NOT NULL UNIQUE, 
-    description VARCHAR, 
-    value_type VARCHAR NOT NULL, 
-    default_value VARCHAR, 
-    mandatory BOOLEAN
-);
-
 CREATE TABLE images (
     id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY,
     src VARCHAR NOT NULL,
@@ -57,7 +35,7 @@ CREATE TABLE categories_products (
     FOREIGN KEY (product_id) references products(id)
 );
 
-CREATE TYPE "PortalUsersRoles" AS ENUM (
+CREATE TYPE portaluserroles AS ENUM (
     'READER',
     'EDITOR',
     'ADMIN'
@@ -68,7 +46,7 @@ CREATE TABLE portal_users (
     first_name VARCHAR NOT NULL,
     last_name VARCHAR NOT NULL,
     password VARCHAR NOT NULL,
-    roles "PortalUsersRoles"[]
+    roles portaluserroles[]
 );
 
 CREATE TABLE inventories (
@@ -106,4 +84,25 @@ CREATE TABLE pricebooks_products (
     FOREIGN KEY (pricebook_id) references pricebooks(id),
     FOREIGN KEY (product_id) references products(id),
     UNIQUE(pricebook_id, product_id)
+);
+
+CREATE TYPE metadataobjecttype AS ENUM (
+  'PRODUCT'
+);
+CREATE TYPE metadatafieldtype AS ENUM (
+  'STRING',
+  'INT'
+);
+CREATE TABLE _metadata_custom_fields (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+
+  object metadataobjecttype NOT NULL,
+  "type" metadatafieldtype NOT NULL,
+  name VARCHAR NOT NULL UNIQUE,
+  description VARCHAR,
+  mandatory boolean NOT NULL DEFAULT false,
+
+  -- string type
+  max_len bigint,
+  min_len bigint
 );
