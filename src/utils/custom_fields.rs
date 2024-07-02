@@ -17,6 +17,10 @@ pub async fn create_custom_fields(
     custom_fields: &ObjectCustomFields,
 ) -> Result<(), String> {
     if let Some(custom_fields) = custom_fields {
+        if custom_fields.is_empty() {
+            return Ok(());
+        }
+
         let mut unstructured_entries: Vec<UnstructuredEntry> = vec![];
         for (key, value) in custom_fields {
             let custom_field = match state.db_service.get_custom_field(object.clone(), key).await {

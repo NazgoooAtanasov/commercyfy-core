@@ -53,6 +53,10 @@ pub async fn get_extensions(
 ) -> CommercyfyResponse<Vec<FieldExtension>> {
     let object = match object_type.to_lowercase().as_str() {
         "product" => FieldExtensionObject::PRODUCT,
+        "category" => FieldExtensionObject::CATEGORY,
+        "inventory" => FieldExtensionObject::INVENTORY,
+        "pricebook" => FieldExtensionObject::PRICEBOOK,
+
         _ => {
             return commercyfy_fail!(
                 StatusCode::NOT_FOUND,

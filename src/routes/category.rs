@@ -8,7 +8,7 @@ use crate::{
         portal_user::{JWTClaims, PortalUsersRoles},
         product::Product,
     },
-    schemas::category::CreateCategory,
+    schemas::category::{AssignProductToCategory, CreateCategory},
     services::{
         db::DbService,
         role_validation::RoleService,
@@ -185,4 +185,37 @@ pub async fn get_category(
         StatusCode::NOT_FOUND,
         format!("Category with id '{id}' not found")
     );
+}
+
+pub async fn assign_products_to_category(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+    Json(payload): Json<AssignProductToCategory>,
+) -> CommercyfyResponse<CreatedEntryResponse> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::EDITOR],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
+    if let Err(err) = payload.validate() {
+        return commercyfy_fail!(err);
+    }
+
+    match state
+        .db_service
+        .create_category_product_entries(&payload)
+        .await
+    {
+        Ok(_) => {
+            return commercyfy_success!(
+                StatusCode::CREATED,
+                CreatedEntryResponse {
+                    id: uuid::uuid!("00000000-0000-0000-0000-000000000000")
+                }
+            )
+        }
+        Err(err) => return commercyfy_fail!(err.to_string()),
+    };
 }

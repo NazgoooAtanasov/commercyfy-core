@@ -53,3 +53,4 @@ pub mod inventory;
 pub mod portal;
 pub mod pricebook;
 pub mod product;
+pub mod logs;

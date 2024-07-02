@@ -21,3 +21,23 @@ impl CreateCategory {
         return Ok(());
     }
 }
+
+#[derive(serde::Deserialize, Debug)]
+pub struct AssignProductToCategory {
+    pub product_ids: Vec<uuid::Uuid>,
+    pub category_id: uuid::Uuid,
+}
+
+impl AssignProductToCategory {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.product_ids.is_empty() {
+            return Err("\"product_ids\" should contain at least one product id".to_string());
+        }
+
+        if self.category_id.to_string().is_empty() {
+            return Err("\"category_id\" is a required field".to_string());
+        }
+
+        return Ok(());
+    }
+}

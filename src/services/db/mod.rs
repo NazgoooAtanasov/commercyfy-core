@@ -5,7 +5,7 @@ use argon2::{
 
 use sqlx::QueryBuilder;
 
-use crate::models::pricebook::{Pricebook, PricebookRecord};
+use crate::{models::pricebook::{Pricebook, PricebookRecord}, schemas::category::AssignProductToCategory};
 use crate::models::product::{Product, ProductImage};
 use crate::models::{
     base_extensions::FieldExtensionType,
@@ -41,7 +41,13 @@ pub trait DbService {
 
     async fn get_category_products_by_id(&self, id: &str) -> DbServiceResult<Vec<Product>>;
 
+    async fn create_category_product_entries(&self, payload: &AssignProductToCategory) -> DbServiceResult<()>;
+
     async fn get_product(&self, id: &str) -> DbServiceResult<Option<Product>>;
+
+    async fn get_products(&self) -> DbServiceResult<Vec<Product>>;
+
+    async fn get_product_categories(&self, id: &str) -> DbServiceResult<Vec<Category>>;
 
     async fn get_product_images(&self, id: &str) -> DbServiceResult<Vec<ProductImage>>;
 
@@ -79,6 +85,8 @@ pub trait DbService {
         inventory_id: &str,
     ) -> DbServiceResult<Option<ProductInventoryRecord>>;
 
+    async fn get_product_inventory_records(&self, product_id: &str) -> DbServiceResult<Vec<ProductInventoryRecord>>;
+
     async fn create_product_inventory_record(
         &self,
         payload: CreateInventoryRecord,
@@ -93,6 +101,8 @@ pub trait DbService {
         reference: &str,
     ) -> DbServiceResult<Option<Pricebook>>;
 
+    async fn get_pricebook_records(&self, id: &str) -> DbServiceResult<Vec<PricebookRecord>>;
+
     async fn create_pricebook(&self, payload: &CreatePricebook) -> DbServiceResult<Pricebook>;
 
     async fn create_product_pricebook_record(
@@ -105,6 +115,8 @@ pub trait DbService {
         product_id: &str,
         pricebook_id: &str,
     ) -> DbServiceResult<Option<PricebookRecord>>;
+
+    async fn get_product_pricebooks(&self, product_id: &str) -> DbServiceResult<Vec<PricebookRecord>>;
 
     async fn get_portal_user(&self, id: &str) -> DbServiceResult<Option<PortalUser>>;
 
@@ -183,11 +195,39 @@ impl DbService for PgDbService {
             .await;
     }
 
+    async fn create_category_product_entries(&self, payload: &AssignProductToCategory) -> DbServiceResult<()> {
+        let mut builder = QueryBuilder::new("INSERT INTO categories_products (category_id, product_id)");
+
+        builder.push_values(payload.product_ids.iter(), |mut b, uuid| {
+            b.push_bind(payload.category_id.clone()).push_bind(uuid);
+        });
+
+        let query = builder.build();
+        let result = query.execute(&self.pool).await;
+        if let Err(err) = result {
+            return Err(err);
+        }
+
+        return Ok(());
+    }
+
     async fn get_product(&self, id: &str) -> DbServiceResult<Option<Product>> {
         return sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id::text = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await;
+    }
+
+    async fn get_products(&self) -> DbServiceResult<Vec<Product>> {
+        return sqlx::query_as::<_, Product>("SELECT * FROM products")
+            .fetch_all(&self.pool)
+            .await;
+    }
+
+    async fn get_product_categories(&self, id: &str) -> DbServiceResult<Vec<Category>> {
+        return sqlx::query_as::<_, Category>("SELECT c.* from categories_products cp JOIN categories c on cp.category_id = c.id WHERE cp.product_id = $1::uuid")
+            .bind(id)
+            .fetch_all(&self.pool).await;
     }
 
     async fn get_product_images(&self, id: &str) -> DbServiceResult<Vec<ProductImage>> {
@@ -301,6 +341,13 @@ impl DbService for PgDbService {
             .fetch_optional(&self.pool).await;
     }
 
+    async fn get_product_inventory_records(&self, product_id: &str) -> DbServiceResult<Vec<ProductInventoryRecord>> {
+        return sqlx::query_as::<_, ProductInventoryRecord>("SELECT * FROM inventories_products WHERE product_id::text = $1")
+            .bind(product_id)
+            .fetch_all(&self.pool)
+            .await;
+    }
+
     async fn create_product_inventory_record(
         &self,
         payload: CreateInventoryRecord,
@@ -337,6 +384,13 @@ impl DbService for PgDbService {
         .await;
     }
 
+    async fn get_pricebook_records(&self, id: &str) -> DbServiceResult<Vec<PricebookRecord>> {
+        return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE pricebook_id::text = $1")
+            .bind(id)
+            .fetch_all(&self.pool)
+            .await;
+    }
+
     async fn create_pricebook(&self, payload: &CreatePricebook) -> DbServiceResult<Pricebook> {
         return sqlx::query_as::<_, Pricebook>("INSERT INTO pricebooks (pricebook_name, pricebook_reference, pricebook_currency_code) VALUES ($1, $2, $3) RETURNING *")
             .bind(&payload.pricebook_name)
@@ -365,6 +419,13 @@ impl DbService for PgDbService {
             .bind(product_id)
             .bind(pricebook_id)
             .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn get_product_pricebooks(&self, product_id: &str) -> DbServiceResult<Vec<PricebookRecord>> {
+        return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE product_id::text = $1")
+            .bind(&product_id)
+            .fetch_all(&self.pool)
             .await;
     }
 

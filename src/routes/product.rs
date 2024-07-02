@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use super::{CommercyfyResponse, CreatedEntryResponse};
 use crate::models::base_extensions::FieldExtensionObject;
+use crate::models::category::Category;
+use crate::models::inventory::ProductInventoryRecord;
 use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
+use crate::models::pricebook::PricebookRecord;
 use crate::models::product::ProductImage;
 use crate::schemas::product::{CreateProduct, CreateProductImage};
 use crate::services::unstructureddb::entry::UnstructuredEntryType;
@@ -11,9 +14,28 @@ use crate::services::{
 };
 use crate::utils::custom_fields::create_custom_fields;
 use crate::{models::product::Product, CommercyfyExtrState};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
+
+pub async fn get_products(
+    Extension(claims): Extension<JWTClaims>,
+    State(state): CommercyfyExtrState,
+) -> CommercyfyResponse<Vec<Product>> {
+    if let Err(err) = state.role_service.validate_any(
+        &claims,
+        vec![PortalUsersRoles::ADMIN, PortalUsersRoles::READER],
+    ) {
+        return commercyfy_fail!(err);
+    }
+
+    let products = match state.db_service.get_products().await {
+        Ok(products) => products,
+        Err(error) => return commercyfy_fail!(error.to_string()),
+    };
+
+    return commercyfy_success!(products);
+}
 
 #[derive(serde::Serialize)]
 pub struct ProductView {
@@ -21,9 +43,19 @@ pub struct ProductView {
     product: Product,
     images: Vec<ProductImage>,
     custom_fields: HashMap<String, UnstructuredEntryType>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    categories: Option<Vec<Category>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inventories: Option<Vec<ProductInventoryRecord>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pricebooks: Option<Vec<PricebookRecord>>,
 }
 
 pub async fn get_product(
+    Query(params): Query<HashMap<String, String>>,
     Extension(claims): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
     Path(id): Path<String>,
@@ -52,6 +84,9 @@ pub async fn get_product(
     let mut product_view = ProductView {
         product: product.unwrap(),
         images: Vec::new(),
+        categories: None,
+        inventories: None,
+        pricebooks: None,
         custom_fields: HashMap::new(),
     };
 
@@ -72,6 +107,47 @@ pub async fn get_product(
             product_view
                 .custom_fields
                 .insert(field.field_name, field.value);
+        }
+    }
+
+    if let Some(value) = params.get("extend") {
+        if value.contains("categories") {
+            let categories = match state
+                .db_service
+                .get_product_categories(&product_view.product.id.to_string())
+                .await
+            {
+                Ok(categories) => categories,
+                Err(err) => return commercyfy_fail!(err.to_string()),
+            };
+
+            product_view.categories = Some(categories);
+        }
+
+        if value.contains("inventories") {
+            let records = match state
+                .db_service
+                .get_product_inventory_records(&product_view.product.id.to_string())
+                .await
+            {
+                Ok(records) => records,
+                Err(err) => return commercyfy_fail!(err.to_string()),
+            };
+
+            product_view.inventories = Some(records);
+        }
+
+        if value.contains("pricebooks") {
+            let pricebooks = match state
+                .db_service
+                .get_product_pricebooks(&product_view.product.id.to_string())
+                .await
+            {
+                Ok(pricebooks) => pricebooks,
+                Err(err) => return commercyfy_fail!(err.to_string()),
+            };
+
+            product_view.pricebooks = Some(pricebooks);
         }
     }
 

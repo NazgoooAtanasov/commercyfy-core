@@ -3,8 +3,8 @@ use crate::models::portal_user::{JWTClaims, PortalUsersRoles};
 pub trait RoleService {
     fn validate_role(&self, claims: &JWTClaims, role: PortalUsersRoles) -> Result<(), String>;
     fn validate_admin(&self, claims: &JWTClaims) -> Result<(), String>;
-    fn validate_editor(&self, claims: &JWTClaims) -> Result<(), String>;
-    fn validate_reader(&self, claims: &JWTClaims) -> Result<(), String>;
+    fn _validate_editor(&self, claims: &JWTClaims) -> Result<(), String>;
+    fn _validate_reader(&self, claims: &JWTClaims) -> Result<(), String>;
     fn validate_any(&self, claims: &JWTClaims, roles: Vec<PortalUsersRoles>) -> Result<(), String>;
 }
 
@@ -26,11 +26,11 @@ impl RoleService for RoleValidation {
         return self.validate_role(claims, PortalUsersRoles::ADMIN);
     }
 
-    fn validate_editor(&self, claims: &JWTClaims) -> Result<(), String> {
+    fn _validate_editor(&self, claims: &JWTClaims) -> Result<(), String> {
         return self.validate_role(claims, PortalUsersRoles::EDITOR);
     }
 
-    fn validate_reader(&self, claims: &JWTClaims) -> Result<(), String> {
+    fn _validate_reader(&self, claims: &JWTClaims) -> Result<(), String> {
         return self.validate_role(claims, PortalUsersRoles::READER);
     }
 

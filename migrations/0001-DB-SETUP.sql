@@ -87,7 +87,10 @@ CREATE TABLE pricebooks_products (
 );
 
 CREATE TYPE metadataobjecttype AS ENUM (
-  'PRODUCT'
+  'PRODUCT',
+  'CATEGORY',
+  'INVENTORY',
+  'PRICEBOOK'
 );
 CREATE TYPE metadatafieldtype AS ENUM (
   'STRING',
@@ -106,3 +109,59 @@ CREATE TABLE _metadata_custom_fields (
   max_len bigint,
   min_len bigint
 );
+
+CREATE TABLE _metadata_webhooks (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  url VARCHAR NOT NULL,
+);
+
+CREATE OR REPLACE FUNCTION log_updates() RETURNS TRIGGER AS $$
+DECLARE
+  json JSONB := '{}';
+  changes JSONB := '{}';
+  col TEXT;
+  old_v TEXT;
+  new_v TEXT;
+BEGIN
+  json := jsonb_set(json, ARRAY['action'], to_jsonb(TG_OP));
+  json := jsonb_set(json, ARRAY['entity'], to_jsonb(TG_TABLE_NAME));
+
+  -- ON INSERT AND DELETE
+  IF TG_OP IS DISTINCT FROM 'UPDATE' THEN
+    IF TG_OP IS NOT DISTINCT FROM 'DELETE' THEN
+      json := jsonb_set(json, ARRAY['id'], to_jsonb(OLD.id));
+    END IF;
+
+    IF TG_OP IS NOT DISTINCT FROM 'INSERT' THEN
+      json := jsonb_set(json, ARRAY['id'], to_jsonb(NEW.id));
+    END IF;
+  END IF;
+
+  -- ON UPDATE
+  IF TG_OP IS NOT DISTINCT FROM 'UPDATE' THEN
+    FOR col IN
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = TG_TABLE_NAME AND column_name NOT IN ('id')
+    LOOP
+      EXECUTE format('SELECT ($1).%I', col) INTO old_v USING OLD;
+      EXECUTE format('SELECT ($1).%I', col) INTO new_v USING NEW;
+
+      IF old_v IS DISTINCT FROM new_v THEN
+        changes := jsonb_set(changes, ARRAY[col], to_jsonb(new_v)); 
+      END IF;
+    END LOOP;
+
+    json := jsonb_set(json, ARRAY['changes'], to_jsonb(changes));
+    json := jsonb_set(json, ARRAY['id'], to_jsonb(OLD.id));
+  END IF;
+
+  PERFORM pg_notify('table_changes', json::text);
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER notify_update AFTER INSERT OR UPDATE OR DELETE on products
+FOR EACH ROW
+EXECUTE FUNCTION log_updates();
