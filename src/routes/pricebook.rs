@@ -45,6 +45,7 @@ pub async fn get_pricebooks(
 pub struct PricebookView {
     #[serde(flatten)]
     pricebook: Pricebook,
+    records: Vec<PricebookRecord>,
     custom_fields: HashMap<String, UnstructuredEntryType>,
 }
 pub async fn get_pricebook(
@@ -67,7 +68,16 @@ pub async fn get_pricebook(
         let mut pricebook_view = PricebookView {
             pricebook,
             custom_fields: HashMap::new(),
+            records: vec![],
         };
+
+        if let Ok(records) = state
+            .db_service
+            .get_pricebook_records(&pricebook_view.pricebook.id.to_string())
+            .await
+        {
+            pricebook_view.records = records;
+        }
 
         if let Ok(custom_fields) = state
             .unstructureddb
@@ -95,7 +105,16 @@ pub async fn get_pricebook(
         let mut pricebook_view = PricebookView {
             pricebook,
             custom_fields: HashMap::new(),
+            records: vec![],
         };
+
+        if let Ok(records) = state
+            .db_service
+            .get_pricebook_records(&pricebook_view.pricebook.id.to_string())
+            .await
+        {
+            pricebook_view.records = records;
+        }
 
         if let Ok(custom_fields) = state
             .unstructureddb

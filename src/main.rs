@@ -12,19 +12,25 @@ use axum::{
 };
 use routes::{
     base_extensions::{create_extension, get_extensions},
-    category::{create_category, get_categories, get_category},
+    category::{assign_products_to_category, create_category, get_categories, get_category},
     inventory::{
         create_inventory, create_inventory_record, get_inventories, get_inventory,
         get_inventory_record,
     },
+    logs::{create_log, get_logs},
     portal::{create_portal_user, get_portal_user, signin_portal_user},
     pricebook::{
         create_pricebook, create_pricebook_record, get_pricebook, get_pricebook_record,
         get_pricebooks,
     },
-    product::{create_product, create_product_image, get_product},
+    product::{create_product, create_product_image, get_product, get_products},
 };
-use services::{db::PgDbService, role_validation::RoleValidation, unstructureddb::MongoDb};
+use services::{
+    db::PgDbService,
+    logger::GenericLogger,
+    role_validation::RoleValidation,
+    unstructureddb::MongoDb,
+};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
@@ -32,6 +38,7 @@ pub struct CommercyfyState {
     pub db_service: PgDbService,
     pub role_service: RoleValidation,
     pub unstructureddb: MongoDb,
+    pub logger: GenericLogger,
 }
 
 type CommercyfyExtrState = State<Arc<CommercyfyState>>;
@@ -58,6 +65,7 @@ pub async fn main() {
     let db_service = PgDbService::new(pool);
     let role_service = RoleValidation::default();
     let unstructureddb = MongoDb::new(mongodb);
+    let logger = GenericLogger::new();
 
     unstructureddb
         .validate_collections()
@@ -68,14 +76,20 @@ pub async fn main() {
         db_service,
         role_service,
         unstructureddb,
+        logger,
     });
 
     let categories = Router::new()
         .route("/categories", get(get_categories))
         .route("/categories", post(create_category))
-        .route("/categories/:id", get(get_category));
+        .route("/categories/:id", get(get_category))
+        .route(
+            "/categories/assign/products",
+            post(assign_products_to_category),
+        );
 
     let product = Router::new()
+        .route("/products", get(get_products))
         .route("/product/:id", get(get_product))
         .route("/product", post(create_product))
         .route("/product/:id/images", post(create_product_image));
@@ -104,12 +118,17 @@ pub async fn main() {
         .route("/portal/user/:id", get(get_portal_user))
         .route("/portal/user", post(create_portal_user));
 
+    let logs = Router::new()
+        .route("/logs", get(get_logs))
+        .route("/logs", post(create_log));
+
     let auth_routes = Router::new()
         .merge(categories)
         .merge(product)
         .merge(inventory)
         .merge(pricebooks)
         .merge(portal)
+        .merge(logs)
         .route_layer(axum::middleware::from_fn(middlewares::authentication::auth));
 
     let signin = Router::new().route("/portal/signin", post(signin_portal_user));
