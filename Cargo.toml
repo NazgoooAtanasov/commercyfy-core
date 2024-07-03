@@ -23,3 +23,11 @@ features = ["serde"]
 [lints.clippy]
 implicit_return = "deny"
 needless_return = "allow"
+
+[[bin]]
+name = "core"
+path = "src/bin/core/main.rs"
+
+[[bin]]
+name = "shopper-context"
+path = "src/bin/shopper-context/main.rs"

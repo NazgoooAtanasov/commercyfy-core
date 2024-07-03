@@ -1,26 +1,23 @@
 use std::collections::HashMap;
 
-use super::{CommercyfyResponse, CreatedEntryResponse};
-use crate::{
-    models::{
-        base_extensions::FieldExtensionObject,
-        category::Category,
-        portal_user::{JWTClaims, PortalUsersRoles},
-        product::Product,
-    },
-    schemas::category::{AssignProductToCategory, CreateCategory},
-    services::{
-        db::DbService,
-        role_validation::RoleService,
-        unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
-    },
-    utils::custom_fields::create_custom_fields,
-    CommercyfyExtrState,
-};
+use super::{CommercyfyExtrState, CreatedEntryResponse};
+use crate::utils::custom_fields::create_custom_fields;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Extension, Json,
+};
+use commercyfy_core::{
+    commercyfy_fail, commercyfy_success, models::{
+        base_extensions::FieldExtensionObject,
+        category::Category,
+        portal_user::{JWTClaims, PortalUsersRoles},
+        product::Product,
+    }, route_utils::CommercyfyResponse, schemas::category::{AssignProductToCategory, CreateCategory}, services::{
+        db::DbService,
+        role_validation::RoleService,
+        unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
+    }
 };
 
 pub async fn get_categories(

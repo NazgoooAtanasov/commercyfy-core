@@ -1,13 +1,10 @@
-use crate::{
-    models::base_extensions::FieldExtensionObject,
-    schemas::base_extensions::{ObjectCustomField, ObjectCustomFields},
-    services::{
+use commercyfy_core::{
+    models::base_extensions::FieldExtensionObject, schemas::base_extensions::{ObjectCustomField, ObjectCustomFields}, services::{
         db::DbService,
-        unstructureddb::entry::{UnstructuredEntry, UnstructuredEntryType},
-        unstructureddb::UnstructuredDb,
-    },
-    CommercyfyState,
+        unstructureddb::{entry::{UnstructuredEntry, UnstructuredEntryType}, UnstructuredDb},
+    }
 };
+use crate::routes::CommercyfyState;
 use std::sync::Arc;
 
 pub async fn create_custom_fields(

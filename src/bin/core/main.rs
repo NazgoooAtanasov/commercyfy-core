@@ -1,16 +1,16 @@
-mod middlewares;
-mod models;
-mod routes;
-mod schemas;
-mod services;
-mod utils;
-
 use axum::{
-    extract::State,
     routing::{get, post},
     serve, Router,
 };
-use routes::{
+use commercyfy_core::services::{
+    db::PgDbService, logger::GenericLogger, role_validation::RoleValidation,
+    unstructureddb::MongoDb,
+};
+
+mod routes;
+mod utils;
+
+use crate::routes::{
     base_extensions::{create_extension, get_extensions},
     category::{assign_products_to_category, create_category, get_categories, get_category},
     inventory::{
@@ -24,24 +24,12 @@ use routes::{
         get_pricebooks,
     },
     product::{create_product, create_product_image, get_product, get_products},
+    CommercyfyState,
 };
-use services::{
-    db::PgDbService,
-    logger::GenericLogger,
-    role_validation::RoleValidation,
-    unstructureddb::MongoDb,
-};
+
+use commercyfy_core::middlewares;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
-
-pub struct CommercyfyState {
-    pub db_service: PgDbService,
-    pub role_service: RoleValidation,
-    pub unstructureddb: MongoDb,
-    pub logger: GenericLogger,
-}
-
-type CommercyfyExtrState = State<Arc<CommercyfyState>>;
 
 #[tokio::main]
 pub async fn main() {
