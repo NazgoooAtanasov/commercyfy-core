@@ -15,6 +15,7 @@ rust_decimal = "1.35.0"
 serde = { version = "1.0.202", features = ["derive"] }
 sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "uuid", "rust_decimal"] }
 tokio = { version = "1.37.0", features = ["full"] }
+tower-sessions = { version = "0.12.2", features = ["memory-store"] }
 
 [dependencies.uuid]
 version = "1.7.0"
