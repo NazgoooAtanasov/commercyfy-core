@@ -1,6 +1,9 @@
-use std::time::{self, Duration, SystemTime};
+use std::{
+    borrow::BorrowMut,
+    time::{self, Duration, SystemTime},
+};
 
-use super::{CommercyfyExtrState, CreatedEntryResponse};
+use super::CommercyfyExtrState;
 use argon2::{PasswordHash, PasswordVerifier};
 use axum::{
     extract::{Path, State},
@@ -8,7 +11,12 @@ use axum::{
     Extension, Json,
 };
 use commercyfy_core::{
-    commercyfy_fail, commercyfy_success, models::portal_user::{JWTClaims, PortalUser, SignInToken}, route_utils::CommercyfyResponse, schemas::portal_user::{PortalUserCreate, PortalUserSignin}, services::{db::DbService, role_validation::RoleService}
+    commercyfy_fail, commercyfy_success,
+    models::portal_user::{JWTClaims, PortalUser, SignInToken},
+    route_utils::{CommercyfyResponse, CreatedEntryResponse},
+    schemas::portal_user::{PortalUserCreate, PortalUserSignin},
+    services::{db::DbService, role_validation::RoleService},
+    utils,
 };
 use jsonwebtoken::{EncodingKey, Header};
 
@@ -39,7 +47,7 @@ pub async fn get_portal_user(
 pub async fn create_portal_user(
     Extension(claim): Extension<JWTClaims>,
     State(state): CommercyfyExtrState,
-    Json(payload): Json<PortalUserCreate>,
+    Json(mut payload): Json<PortalUserCreate>,
 ) -> CommercyfyResponse<CreatedEntryResponse> {
     if let Err(err) = state.role_service.validate_admin(&claim) {
         return commercyfy_fail!(err);
@@ -59,6 +67,11 @@ pub async fn create_portal_user(
     if let Some(_) = existing.unwrap() {
         return commercyfy_fail!("User with that email already exists".to_string());
     }
+
+    match utils::passwords::hash_password(&payload.password) {
+        Ok(hash) => payload.borrow_mut().password = hash,
+        Err(err) => return commercyfy_fail!(err),
+    };
 
     let user = state.db_service.create_portal_user(payload).await;
     if let Err(err) = user {

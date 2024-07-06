@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE products (
-    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY, 
+    id uuid DEFAULT uuid_generate_v4 () PRIMARY KEY,
     product_name VARCHAR NOT NULL,
     product_description VARCHAR NOT NULL,
     product_color VARCHAR
@@ -148,7 +148,7 @@ BEGIN
       EXECUTE format('SELECT ($1).%I', col) INTO new_v USING NEW;
 
       IF old_v IS DISTINCT FROM new_v THEN
-        changes := jsonb_set(changes, ARRAY[col], to_jsonb(new_v)); 
+        changes := jsonb_set(changes, ARRAY[col], to_jsonb(new_v));
       END IF;
     END LOOP;
 
@@ -165,3 +165,15 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER notify_update AFTER INSERT OR UPDATE OR DELETE on products
 FOR EACH ROW
 EXECUTE FUNCTION log_updates();
+
+CREATE TABLE accounts (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+
+  first_name VARCHAR NOT NULL,
+  last_name VARCHAR NOT NULL,
+  email VARCHAR NOT NULL UNIQUE,
+  password VARCHAR NOT NULL,
+
+  gender VARCHAR,
+  birthday DATE
+);

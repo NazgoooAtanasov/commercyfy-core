@@ -13,7 +13,16 @@ jsonwebtoken = "9.3.0"
 mongodb = { version = "2.8.2", features = ["tokio-runtime"] }
 rust_decimal = "1.35.0"
 serde = { version = "1.0.202", features = ["derive"] }
-sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "uuid", "rust_decimal"] }
+serde_json = "1.0.120"
+serde_valid = "0.24.0"
+sqlx = { version = "0.7.4", features = [
+    "runtime-tokio",
+    "postgres",
+    "uuid",
+    "rust_decimal",
+    "time",
+] }
+thiserror = "1.0.61"
 tokio = { version = "1.37.0", features = ["full"] }
 tower-sessions = { version = "0.12.2", features = ["memory-store"] }
 

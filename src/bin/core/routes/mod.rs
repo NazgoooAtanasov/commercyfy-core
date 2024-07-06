@@ -5,11 +5,6 @@ use commercyfy_core::services::{
 };
 use std::sync::Arc;
 
-#[derive(serde::Serialize, Debug)]
-pub struct CreatedEntryResponse {
-    pub id: sqlx::types::Uuid,
-}
-
 pub struct CommercyfyState {
     pub db_service: PgDbService,
     pub role_service: RoleValidation,

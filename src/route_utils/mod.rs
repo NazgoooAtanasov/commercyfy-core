@@ -1,5 +1,7 @@
 use axum::Json;
 
+pub mod extractors;
+
 #[derive(serde::Serialize)]
 #[serde(untagged)]
 pub enum CommercyfyResponseData<T: serde::Serialize> {
@@ -7,6 +9,11 @@ pub enum CommercyfyResponseData<T: serde::Serialize> {
     Error { error: String },
 }
 pub type CommercyfyResponse<T> = (axum::http::StatusCode, Json<CommercyfyResponseData<T>>);
+
+#[derive(serde::Serialize, Debug)]
+pub struct CreatedEntryResponse {
+    pub id: sqlx::types::Uuid,
+}
 
 #[macro_export]
 macro_rules! commercyfy_success {

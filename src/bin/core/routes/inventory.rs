@@ -1,4 +1,4 @@
-use super::{CommercyfyExtrState, CreatedEntryResponse};
+use super::CommercyfyExtrState;
 use crate::utils::custom_fields::create_custom_fields;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -9,7 +9,7 @@ use commercyfy_core::models::base_extensions::FieldExtensionObject;
 use commercyfy_core::models::inventory::Inventory;
 use commercyfy_core::models::inventory::ProductInventoryRecord;
 use commercyfy_core::models::portal_user::{JWTClaims, PortalUsersRoles};
-use commercyfy_core::route_utils::CommercyfyResponse;
+use commercyfy_core::route_utils::{CommercyfyResponse, CreatedEntryResponse};
 use commercyfy_core::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use commercyfy_core::services::db::DbService;
 use commercyfy_core::services::role_validation::RoleService;

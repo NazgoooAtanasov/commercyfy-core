@@ -1,21 +1,19 @@
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-    Argon2,
-};
-
-use sqlx::QueryBuilder;
-
-use crate::{models::pricebook::{Pricebook, PricebookRecord}, schemas::category::AssignProductToCategory};
+use crate::models::account::Account;
 use crate::models::product::{Product, ProductImage};
 use crate::models::{
     base_extensions::FieldExtensionType,
     inventory::{Inventory, ProductInventoryRecord},
 };
+use crate::schemas::account::CreateAccount;
 use crate::schemas::inventory::{CreateInventory, CreateInventoryRecord};
 use crate::schemas::portal_user::PortalUserCreate;
 use crate::schemas::pricebook::{CreatePricebook, CreatePricebookRecord};
 use crate::schemas::product::{CreateProduct, CreateProductImage};
 use crate::{models::portal_user::PortalUser, schemas::base_extensions::CreateCustomFieldEntry};
+use crate::{
+    models::pricebook::{Pricebook, PricebookRecord},
+    schemas::category::AssignProductToCategory,
+};
 use crate::{
     models::{
         base_extensions::{FieldExtension, FieldExtensionObject},
@@ -23,6 +21,7 @@ use crate::{
     },
     schemas::base_extensions::CreateCustomField,
 };
+use sqlx::QueryBuilder;
 
 type DbServiceResult<T> = Result<T, sqlx::Error>;
 
@@ -41,7 +40,10 @@ pub trait DbService {
 
     async fn get_category_products_by_id(&self, id: &str) -> DbServiceResult<Vec<Product>>;
 
-    async fn create_category_product_entries(&self, payload: &AssignProductToCategory) -> DbServiceResult<()>;
+    async fn create_category_product_entries(
+        &self,
+        payload: &AssignProductToCategory,
+    ) -> DbServiceResult<()>;
 
     async fn get_product(&self, id: &str) -> DbServiceResult<Option<Product>>;
 
@@ -85,7 +87,10 @@ pub trait DbService {
         inventory_id: &str,
     ) -> DbServiceResult<Option<ProductInventoryRecord>>;
 
-    async fn get_product_inventory_records(&self, product_id: &str) -> DbServiceResult<Vec<ProductInventoryRecord>>;
+    async fn get_product_inventory_records(
+        &self,
+        product_id: &str,
+    ) -> DbServiceResult<Vec<ProductInventoryRecord>>;
 
     async fn create_product_inventory_record(
         &self,
@@ -116,7 +121,10 @@ pub trait DbService {
         pricebook_id: &str,
     ) -> DbServiceResult<Option<PricebookRecord>>;
 
-    async fn get_product_pricebooks(&self, product_id: &str) -> DbServiceResult<Vec<PricebookRecord>>;
+    async fn get_product_pricebooks(
+        &self,
+        product_id: &str,
+    ) -> DbServiceResult<Vec<PricebookRecord>>;
 
     async fn get_portal_user(&self, id: &str) -> DbServiceResult<Option<PortalUser>>;
 
@@ -139,6 +147,10 @@ pub trait DbService {
         &self,
         object_type: FieldExtensionObject,
     ) -> DbServiceResult<Vec<FieldExtension>>;
+
+    async fn get_account_by_email(&self, email: &str) -> DbServiceResult<Option<Account>>;
+
+    async fn create_account(&self, payload: &CreateAccount) -> DbServiceResult<Account>;
 }
 
 pub struct PgDbService {
@@ -195,8 +207,12 @@ impl DbService for PgDbService {
             .await;
     }
 
-    async fn create_category_product_entries(&self, payload: &AssignProductToCategory) -> DbServiceResult<()> {
-        let mut builder = QueryBuilder::new("INSERT INTO categories_products (category_id, product_id)");
+    async fn create_category_product_entries(
+        &self,
+        payload: &AssignProductToCategory,
+    ) -> DbServiceResult<()> {
+        let mut builder =
+            QueryBuilder::new("INSERT INTO categories_products (category_id, product_id)");
 
         builder.push_values(payload.product_ids.iter(), |mut b, uuid| {
             b.push_bind(payload.category_id.clone()).push_bind(uuid);
@@ -341,11 +357,16 @@ impl DbService for PgDbService {
             .fetch_optional(&self.pool).await;
     }
 
-    async fn get_product_inventory_records(&self, product_id: &str) -> DbServiceResult<Vec<ProductInventoryRecord>> {
-        return sqlx::query_as::<_, ProductInventoryRecord>("SELECT * FROM inventories_products WHERE product_id::text = $1")
-            .bind(product_id)
-            .fetch_all(&self.pool)
-            .await;
+    async fn get_product_inventory_records(
+        &self,
+        product_id: &str,
+    ) -> DbServiceResult<Vec<ProductInventoryRecord>> {
+        return sqlx::query_as::<_, ProductInventoryRecord>(
+            "SELECT * FROM inventories_products WHERE product_id::text = $1",
+        )
+        .bind(product_id)
+        .fetch_all(&self.pool)
+        .await;
     }
 
     async fn create_product_inventory_record(
@@ -385,10 +406,12 @@ impl DbService for PgDbService {
     }
 
     async fn get_pricebook_records(&self, id: &str) -> DbServiceResult<Vec<PricebookRecord>> {
-        return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE pricebook_id::text = $1")
-            .bind(id)
-            .fetch_all(&self.pool)
-            .await;
+        return sqlx::query_as::<_, PricebookRecord>(
+            "SELECT * FROM pricebooks_products WHERE pricebook_id::text = $1",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await;
     }
 
     async fn create_pricebook(&self, payload: &CreatePricebook) -> DbServiceResult<Pricebook> {
@@ -422,11 +445,16 @@ impl DbService for PgDbService {
             .await;
     }
 
-    async fn get_product_pricebooks(&self, product_id: &str) -> DbServiceResult<Vec<PricebookRecord>> {
-        return sqlx::query_as::<_, PricebookRecord>("SELECT * FROM pricebooks_products WHERE product_id::text = $1")
-            .bind(&product_id)
-            .fetch_all(&self.pool)
-            .await;
+    async fn get_product_pricebooks(
+        &self,
+        product_id: &str,
+    ) -> DbServiceResult<Vec<PricebookRecord>> {
+        return sqlx::query_as::<_, PricebookRecord>(
+            "SELECT * FROM pricebooks_products WHERE product_id::text = $1",
+        )
+        .bind(&product_id)
+        .fetch_all(&self.pool)
+        .await;
     }
 
     async fn get_portal_user(&self, id: &str) -> DbServiceResult<Option<PortalUser>> {
@@ -437,20 +465,11 @@ impl DbService for PgDbService {
     }
 
     async fn create_portal_user(&self, payload: PortalUserCreate) -> DbServiceResult<PortalUser> {
-        let argon2 = Argon2::default();
-        let salt = SaltString::generate(&mut OsRng);
-        let password_hash = argon2.hash_password(payload.password.as_bytes(), &salt);
-        if let Err(_) = password_hash {
-            return Err(sqlx::Error::Io(std::io::ErrorKind::InvalidInput.into()));
-        }
-
-        let hash = password_hash.unwrap().to_string();
-
         return sqlx::query_as::<_, PortalUser>("INSERT INTO portal_users (email, first_name, last_name, password, roles) VALUES ($1, $2, $3, $4, $5) RETURNING *")
             .bind(payload.email)
             .bind(payload.first_name)
             .bind(payload.last_name)
-            .bind(hash)
+            .bind(payload.password)
             .bind(payload.roles)
             .fetch_one(&self.pool).await;
     }
@@ -516,5 +535,22 @@ impl DbService for PgDbService {
         .bind(object_type)
         .fetch_all(&self.pool)
         .await;
+    }
+
+    async fn get_account_by_email(&self, email: &str) -> DbServiceResult<Option<Account>> {
+        return sqlx::query_as!(Account, "SELECT * FROM accounts WHERE email = $1", email)
+            .fetch_optional(&self.pool)
+            .await;
+    }
+
+    async fn create_account(&self, payload: &CreateAccount) -> DbServiceResult<Account> {
+        return sqlx::query_as!(Account, "INSERT INTO accounts (first_name, last_name, email, password, gender, birthday) values ($1, $2, $3, $4, $5, $6) RETURNING *",
+            payload.first_name,
+            payload.last_name,
+            payload.email,
+            payload.password,
+            payload.gender,
+            payload.birthday
+        ).fetch_one(&self.pool).await;
     }
 }

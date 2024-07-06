@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use super::{CommercyfyExtrState, CreatedEntryResponse};
+use super::CommercyfyExtrState;
 use crate::utils::custom_fields::create_custom_fields;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
-use commercyfy_core::{commercyfy_fail, commercyfy_success};
 use commercyfy_core::models::base_extensions::FieldExtensionObject;
 use commercyfy_core::models::category::Category;
 use commercyfy_core::models::inventory::ProductInventoryRecord;
@@ -13,12 +12,13 @@ use commercyfy_core::models::portal_user::{JWTClaims, PortalUsersRoles};
 use commercyfy_core::models::pricebook::PricebookRecord;
 use commercyfy_core::models::product::Product;
 use commercyfy_core::models::product::ProductImage;
-use commercyfy_core::route_utils::CommercyfyResponse;
+use commercyfy_core::route_utils::{CommercyfyResponse, CreatedEntryResponse};
 use commercyfy_core::schemas::product::{CreateProduct, CreateProductImage};
 use commercyfy_core::services::unstructureddb::entry::UnstructuredEntryType;
 use commercyfy_core::services::{
     db::DbService, role_validation::RoleService, unstructureddb::UnstructuredDb,
 };
+use commercyfy_core::{commercyfy_fail, commercyfy_success};
 
 pub async fn get_products(
     Extension(claims): Extension<JWTClaims>,

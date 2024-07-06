@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{CommercyfyExtrState, CreatedEntryResponse};
+use super::CommercyfyExtrState;
 use crate::utils::custom_fields::create_custom_fields;
 use axum::{
     extract::{Path, State},
@@ -8,16 +8,20 @@ use axum::{
     Extension, Json,
 };
 use commercyfy_core::{
-    commercyfy_fail, commercyfy_success, models::{
+    commercyfy_fail, commercyfy_success,
+    models::{
         base_extensions::FieldExtensionObject,
         category::Category,
         portal_user::{JWTClaims, PortalUsersRoles},
         product::Product,
-    }, route_utils::CommercyfyResponse, schemas::category::{AssignProductToCategory, CreateCategory}, services::{
+    },
+    route_utils::{CommercyfyResponse, CreatedEntryResponse},
+    schemas::category::{AssignProductToCategory, CreateCategory},
+    services::{
         db::DbService,
         role_validation::RoleService,
         unstructureddb::{entry::UnstructuredEntryType, UnstructuredDb},
-    }
+    },
 };
 
 pub async fn get_categories(

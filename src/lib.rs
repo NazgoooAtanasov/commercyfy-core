@@ -2,6 +2,7 @@
 
 pub mod middlewares;
 pub mod models;
+pub mod route_utils;
 pub mod schemas;
 pub mod services;
-pub mod route_utils;
+pub mod utils;
